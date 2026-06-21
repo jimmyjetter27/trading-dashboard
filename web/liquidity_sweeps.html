@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Liquidity Sweeps</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/styles.css?v=20260607a">
+</head>
+<body data-current-page="liquidity-sweeps">
+  <div class="app-shell shell-layout">
+    <aside class="side-nav" id="sideNav">
+      <div class="side-nav-head">
+        <div>
+          <p class="eyebrow">MetaTrader Monitor</p>
+          <h2>Observer</h2>
+        </div>
+        <button class="theme-button nav-toggle" id="sideNavToggle" type="button">Collapse</button>
+      </div>
+      <nav class="page-nav side-page-nav" id="pageNav">
+        <a class="theme-button page-tab" href="/live" data-page="live" data-tooltip="Live Desk"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12l9-8 9 8"></path><path d="M5 10v10h14V10"></path></svg><span class="page-tab-label">Live Desk</span></a>
+        <a class="theme-button page-tab" href="/analysis" data-page="analysis" data-tooltip="Analysis"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16"></path><path d="M7 15l3-4 3 2 4-6"></path><circle cx="7" cy="15" r="1"></circle><circle cx="10" cy="11" r="1"></circle><circle cx="13" cy="13" r="1"></circle><circle cx="17" cy="7" r="1"></circle></svg><span class="page-tab-label">Analysis</span></a>
+        <a class="theme-button page-tab" href="/market-intel" data-page="market-intel" data-tooltip="Market Intel"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16"></path><path d="M6 15l3-3 3 2 5-6"></path><path d="M18 7h-4"></path><path d="M18 7v4"></path></svg><span class="page-tab-label">Market Intel</span></a>
+        <a class="theme-button page-tab" href="/playbook" data-page="playbook" data-tooltip="Playbook"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h10a4 4 0 0 1 4 4v10H9a4 4 0 0 0-4 4z"></path><path d="M5 5v14a4 4 0 0 1 4-4h10"></path><path d="M9 9h6"></path><path d="M9 13h6"></path></svg><span class="page-tab-label">Playbook</span></a>
+        <a class="theme-button page-tab" href="/charts" data-page="charts" data-tooltip="Charts"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16"></path><path d="M7 16V9"></path><path d="M12 14V5"></path><path d="M17 18v-8"></path><path d="M6 11h2"></path><path d="M11 8h2"></path><path d="M16 12h2"></path></svg><span class="page-tab-label">Charts</span></a>
+        <a class="theme-button page-tab" href="/xau-chart" data-page="xau-chart" data-tooltip="XAU Chart"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16"></path><path d="M8 6v12"></path><path d="M12 4v8"></path><path d="M16 9v9"></path><path d="M7 10h2"></path><path d="M11 7h2"></path><path d="M15 13h2"></path></svg><span class="page-tab-label">XAU Chart</span></a>
+        <a class="theme-button page-tab active" href="/liquidity-sweeps" data-page="liquidity-sweeps" data-tooltip="Liquidity Sweeps"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16"></path><path d="M6 8h12"></path><path d="M8 8c0 4 2 6 4 8"></path><path d="M16 8c0 4-2 6-4 8"></path><path d="M9 16h6"></path></svg><span class="page-tab-label">Liquidity Sweeps</span></a>
+        <a class="theme-button page-tab" href="/consolidation" data-page="consolidation" data-tooltip="Consolidation"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="8" width="16" height="8" rx="2"></rect><path d="M8 12h8"></path></svg><span class="page-tab-label">Consolidation</span></a>
+        <a class="theme-button page-tab" href="/calculator" data-page="calculator" data-tooltip="Calculator"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"></rect><path d="M8 7h8"></path><path d="M8 11h2"></path><path d="M12 11h2"></path><path d="M16 11h0"></path><path d="M8 15h2"></path><path d="M12 15h2"></path><path d="M16 15h0"></path></svg><span class="page-tab-label">Calculator</span></a>
+        <a class="theme-button page-tab" href="/risk" data-page="risk" data-tooltip="Risk Planner"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6l7-3z"></path><path d="M9 12l2 2 4-4"></path></svg><span class="page-tab-label">Risk Planner</span></a>
+        <a class="theme-button page-tab" href="/markets" data-page="markets" data-tooltip="Markets"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18"></path><path d="M12 3a15 15 0 0 1 0 18"></path><path d="M12 3a15 15 0 0 0 0 18"></path></svg><span class="page-tab-label">Markets</span></a>
+        <a class="theme-button page-tab" href="/security" data-page="security" data-tooltip="Security"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6l7-3z"></path><path d="M9.5 12.5l1.5 1.5 3.5-4"></path></svg><span class="page-tab-label">Security</span></a>
+        <a class="theme-button page-tab" href="/journal" data-page="journal" data-tooltip="Journal"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h9a3 3 0 0 1 3 3v13H9a3 3 0 0 0-3 3z"></path><path d="M6 4v16a3 3 0 0 1 3-3h9"></path><path d="M10 8h5"></path><path d="M10 12h5"></path></svg><span class="page-tab-label">Journal</span></a>
+        <a class="theme-button page-tab" href="/tools" data-page="tools" data-tooltip="Tools"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6V3"></path><path d="M12 21v-3"></path><path d="M6 12H3"></path><path d="M21 12h-3"></path><circle cx="12" cy="12" r="3"></circle><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.4 1a7 7 0 0 0-1.7-1L14 3h-4l-.8 3a7 7 0 0 0-1.7 1l-2.4-1-2 3.5L5.1 11a7 7 0 0 0 0 2L3.1 14.5l2 3.5 2.4-1a7 7 0 0 0 1.7 1l.8 3h4l.8-3a7 7 0 0 0 1.7-1l2.4 1 2-3.5-2-1.5c.1-.3.1-.7.1-1z"></path></svg><span class="page-tab-label">Tools</span></a>
+      </nav>
+    </aside>
+
+    <main class="main-shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Liquidity Engine</p>
+          <h1>Engineered Sweep Monitor</h1>
+          <p class="hero-copy">Track live and frozen liquidity sweeps against previous day, week, and month highs/lows with a clean chart focused on the candles that matter.</p>
+        </div>
+        <div class="hero-meta">
+          <div class="status-pill" id="sweepStatusPill">Scanning...</div>
+          <div class="toolbar">
+            <button class="theme-button" id="themeToggle" type="button">Toggle Theme</button>
+          </div>
+        </div>
+      </header>
+
+      <section class="panel page-section sweep-page" data-page-panel="liquidity-sweeps">
+        <div class="panel-head">
+          <div>
+            <p class="panel-kicker">Sweep Detection</p>
+            <h2>Live & Frozen Chart Board</h2>
+          </div>
+        </div>
+
+        <div class="sweep-topbar">
+          <div class="sweep-controls">
+            <label>
+              <span>Symbol</span>
+              <input class="toolbar-select" id="sweepSymbolInput" type="text" placeholder="XAUUSD, XAUUSDm, GOLD" value="XAUUSD">
+            </label>
+            <div class="sweep-mode-group" id="sweepModeGroup">
+              <button class="theme-button active" type="button" data-sweep-mode="live">Live</button>
+              <button class="theme-button" type="button" data-sweep-mode="frozen">Frozen</button>
+            </div>
+            <button class="theme-button primary-button" id="sweepRefreshButton" type="button">Refresh Sweeps</button>
+          </div>
+          <div class="analysis-topline sweep-headline">
+            <span id="sweepResolvedSymbol">XAUUSD</span>
+            <strong id="sweepCurrentTimeframe">1h</strong>
+            <span id="sweepCurrentPrice">-</span>
+          </div>
+        </div>
+
+        <div class="sweep-timeframes" id="sweepTimeframes">
+          <button class="theme-button" type="button" data-sweep-timeframe="M1">1m</button>
+          <button class="theme-button" type="button" data-sweep-timeframe="M3">3m</button>
+          <button class="theme-button" type="button" data-sweep-timeframe="M5">5m</button>
+          <button class="theme-button" type="button" data-sweep-timeframe="M15">15m</button>
+          <button class="theme-button" type="button" data-sweep-timeframe="M30">30m</button>
+          <button class="theme-button active" type="button" data-sweep-timeframe="H1">1h</button>
+          <button class="theme-button" type="button" data-sweep-timeframe="H2">2h</button>
+          <button class="theme-button" type="button" data-sweep-timeframe="H4">4h</button>
+          <button class="theme-button" type="button" data-sweep-timeframe="D1">D</button>
+          <button class="theme-button" type="button" data-sweep-timeframe="W1">W</button>
+          <button class="theme-button" type="button" data-sweep-timeframe="MN1">M</button>
+        </div>
+
+        <div class="sweep-summary-grid">
+          <article class="panel stat-panel">
+            <span>Latest Sweep</span>
+            <strong id="sweepLatestLabel">Waiting...</strong>
+            <small id="sweepLatestMeta">No sweep detected yet.</small>
+          </article>
+          <article class="panel stat-panel">
+            <span>Visible Sweeps</span>
+            <strong id="sweepVisibleCount">0</strong>
+            <small id="sweepVisibleMeta">Based on the candles currently in view</small>
+          </article>
+          <article class="panel stat-panel">
+            <span>Detection Mode</span>
+            <strong id="sweepModeText">Live</strong>
+            <small id="sweepModeMeta">Live mode auto-refreshes. Frozen mode holds the last fetched snapshot.</small>
+          </article>
+        </div>
+
+        <section class="layout-grid sweep-quickread-grid">
+          <article class="panel analysis-card">
+            <div class="panel-head">
+              <div>
+                <p class="panel-kicker">Bias</p>
+                <h3>Current Read</h3>
+              </div>
+            </div>
+            <div class="analysis-list" id="sweepBiasCards">
+              <div class="empty-state">Waiting for a live sweep read...</div>
+            </div>
+          </article>
+          <article class="panel analysis-card">
+            <div class="panel-head">
+              <div>
+                <p class="panel-kicker">Entry Note</p>
+                <h3>Fast Trade Advice</h3>
+              </div>
+            </div>
+            <div class="analysis-list" id="sweepAdviceCards">
+              <div class="empty-state">When a fresh live sweep appears, a short execution note will appear here.</div>
+            </div>
+          </article>
+        </section>
+
+        <div class="sweep-shell">
+          <article class="sweep-board">
+            <div class="sweep-chart-head">
+              <div class="xau-tv-symbol-line">
+                <strong id="sweepTitleSymbol">Gold Spot / U.S. Dollar</strong>
+                <span id="sweepSubtitle">Liquidity sweep map</span>
+              </div>
+              <div class="xau-tv-price-line" id="sweepHeaderPrice">Waiting for live feed...</div>
+            </div>
+            <div class="sweep-stage">
+              <canvas id="sweepCanvas" width="1280" height="760"></canvas>
+            </div>
+            <div class="sweep-footer">
+              <article class="analysis-item">
+                <strong>Level Sets</strong>
+                <p id="sweepLevelLegend">PDH/PDL, PWH/PWL, PMH/PML stay on chart while sweep candles are marked in dotted black lines.</p>
+              </article>
+              <article class="analysis-item">
+                <strong>Controls</strong>
+                <p>Drag to pan. Mouse wheel or trackpad scroll zooms horizontally. Drag the chart up or down to shift price view.</p>
+              </article>
+            </div>
+          </article>
+        </div>
+
+        <section class="layout-grid sweep-info-grid">
+          <article class="panel analysis-card">
+            <div class="panel-head">
+              <div>
+                <p class="panel-kicker">Sweep Journal</p>
+                <h3>Latest Signals</h3>
+              </div>
+            </div>
+            <div class="analysis-list" id="sweepEventsList">
+              <div class="empty-state">Waiting for liquidity sweeps...</div>
+            </div>
+          </article>
+
+          <article class="panel analysis-card">
+            <div class="panel-head">
+              <div>
+                <p class="panel-kicker">What It Means</p>
+                <h3>Detector Notes</h3>
+              </div>
+            </div>
+            <div class="analysis-list" id="sweepNotesList">
+              <article class="analysis-item neutral">
+                <strong>Engineered sweep</strong>
+                <p>The detector flags candles that raid a previous day, week, month, or recent swing liquidity level and then close back through it.</p>
+              </article>
+              <article class="analysis-item neutral">
+                <strong>Frozen mode</strong>
+                <p>Use frozen mode to validate past sweeps without the feed moving while you scroll through the chart.</p>
+              </article>
+            </div>
+          </article>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <div class="alarm-modal hidden" id="sweepAlarmModal" aria-hidden="true">
+    <div class="alarm-backdrop"></div>
+    <div class="alarm-dialog" id="sweepAlarmDialog">
+      <p class="alarm-kicker" id="sweepAlarmKicker">Liquidity Alert</p>
+      <h2 id="sweepAlarmTitle">Liquidity Sweep Detected</h2>
+      <p class="alarm-copy" id="sweepAlarmMessage">Waiting for a live engineered sweep.</p>
+      <div class="alarm-meta">
+        <span id="sweepAlarmTradeMeta">Account-wide</span>
+        <span id="sweepAlarmTimeMeta">-</span>
+      </div>
+      <button class="alarm-stop-button" id="sweepStopAlarmButton" type="button">Stop Alert</button>
+    </div>
+  </div>
+
+  <script src="/app.js?v=20260607a"></script>
+  <script src="/liquidity_sweeps.js?v=20260607a"></script>
+</body>
+</html>

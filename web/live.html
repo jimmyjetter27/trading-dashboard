@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MetaTrader Trade Observer</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/styles.css?v=20260503a">
+</head>
+<body data-current-page="live">
+  <div class="app-shell shell-layout">
+    <aside class="side-nav" id="sideNav">
+      <div class="side-nav-head">
+        <div>
+          <p class="eyebrow">MetaTrader Monitor</p>
+          <h2>Observer</h2>
+        </div>
+        <button class="theme-button nav-toggle" id="sideNavToggle" type="button">Collapse</button>
+      </div>
+      <nav class="page-nav side-page-nav" id="pageNav">
+        <a class="theme-button page-tab active" href="/live" data-page="live" data-tooltip="Live Desk"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12l9-8 9 8"></path><path d="M5 10v10h14V10"></path></svg><span class="page-tab-label">Live Desk</span></a>
+        <a class="theme-button page-tab" href="/analysis" data-page="analysis" data-tooltip="Analysis"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16"></path><path d="M7 15l3-4 3 2 4-6"></path><circle cx="7" cy="15" r="1"></circle><circle cx="10" cy="11" r="1"></circle><circle cx="13" cy="13" r="1"></circle><circle cx="17" cy="7" r="1"></circle></svg><span class="page-tab-label">Analysis</span></a>
+        <a class="theme-button page-tab" href="/playbook" data-page="playbook" data-tooltip="Playbook"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h10a4 4 0 0 1 4 4v10H9a4 4 0 0 0-4 4z"></path><path d="M5 5v14a4 4 0 0 1 4-4h10"></path><path d="M9 9h6"></path><path d="M9 13h6"></path></svg><span class="page-tab-label">Playbook</span></a>
+        <a class="theme-button page-tab" href="/signal-lab" data-page="signal-lab" data-tooltip="Signal Lab"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3v4l-4 7a4 4 0 0 0 3.5 6h7a4 4 0 0 0 3.5-6l-4-7V3"></path><path d="M8 11h8"></path><path d="M10 15h4"></path></svg><span class="page-tab-label">Signal Lab</span></a>
+        <a class="theme-button page-tab" href="/charts" data-page="charts" data-tooltip="Charts"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16"></path><path d="M7 16V9"></path><path d="M12 14V5"></path><path d="M17 18v-8"></path><path d="M6 11h2"></path><path d="M11 8h2"></path><path d="M16 12h2"></path></svg><span class="page-tab-label">Charts</span></a>
+        <a class="theme-button page-tab" href="/xau-chart" data-page="xau-chart" data-tooltip="XAU Chart"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16"></path><path d="M8 6v12"></path><path d="M12 4v8"></path><path d="M16 9v9"></path><path d="M7 10h2"></path><path d="M11 7h2"></path><path d="M15 13h2"></path></svg><span class="page-tab-label">XAU Chart</span></a>
+        <a class="theme-button page-tab" href="/consolidation" data-page="consolidation" data-tooltip="Consolidation"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="8" width="16" height="8" rx="2"></rect><path d="M8 12h8"></path></svg><span class="page-tab-label">Consolidation</span></a>
+        <a class="theme-button page-tab" href="/calculator" data-page="calculator" data-tooltip="Calculator"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"></rect><path d="M8 7h8"></path><path d="M8 11h2"></path><path d="M12 11h2"></path><path d="M16 11h0"></path><path d="M8 15h2"></path><path d="M12 15h2"></path><path d="M16 15h0"></path></svg><span class="page-tab-label">Calculator</span></a>
+        <a class="theme-button page-tab" href="/risk" data-page="risk" data-tooltip="Risk Planner"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6l7-3z"></path><path d="M9 12l2 2 4-4"></path></svg><span class="page-tab-label">Risk Planner</span></a>
+        <a class="theme-button page-tab" href="/markets" data-page="markets" data-tooltip="Markets"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18"></path><path d="M12 3a15 15 0 0 1 0 18"></path><path d="M12 3a15 15 0 0 0 0 18"></path></svg><span class="page-tab-label">Markets</span></a>
+        <a class="theme-button page-tab" href="/security" data-page="security" data-tooltip="Security"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6l7-3z"></path><path d="M9.5 12.5l1.5 1.5 3.5-4"></path></svg><span class="page-tab-label">Security</span></a>
+        <a class="theme-button page-tab" href="/journal" data-page="journal" data-tooltip="Journal"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h9a3 3 0 0 1 3 3v13H9a3 3 0 0 0-3 3z"></path><path d="M6 4v16a3 3 0 0 1 3-3h9"></path><path d="M10 8h5"></path><path d="M10 12h5"></path></svg><span class="page-tab-label">Journal</span></a>
+        <a class="theme-button page-tab" href="/tools" data-page="tools" data-tooltip="Tools"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6V3"></path><path d="M12 21v-3"></path><path d="M6 12H3"></path><path d="M21 12h-3"></path><circle cx="12" cy="12" r="3"></circle><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.4 1a7 7 0 0 0-1.7-1L14 3h-4l-.8 3a7 7 0 0 0-1.7 1l-2.4-1-2 3.5L5.1 11a7 7 0 0 0 0 2L3.1 14.5l2 3.5 2.4-1a7 7 0 0 0 1.7 1l.8 3h4l.8-3a7 7 0 0 0 1.7-1l2.4 1 2-3.5-2-1.5c.1-.3.1-.7.1-1z"></path></svg><span class="page-tab-label">Tools</span></a>
+      </nav>
+    </aside>
+
+    <main class="main-shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">MetaTrader Monitor</p>
+        <h1>Trade Observer Dashboard</h1>
+        <p class="hero-copy">Live position tracking, account risk alerts, and a SQLite-backed trade journal in one responsive dark-mode app.</p>
+      </div>
+      <div class="hero-meta">
+        <div class="status-pill" id="connectionPill">Connecting...</div>
+        <div class="toolbar">
+          <select class="theme-button toolbar-select" id="accountProfileSelect">
+            <option value="">Default MT5 Session</option>
+          </select>
+          <label class="toggle-chip" id="emailToggleWrap">
+            <input id="emailToggleInput" type="checkbox">
+            <span class="toggle-slider"></span>
+            <span class="toggle-label" id="emailToggleLabel">Gmail Alerts</span>
+          </label>
+          <label class="toggle-chip" id="notificationsToggleWrap">
+            <input id="notificationsToggleInput" type="checkbox" checked>
+            <span class="toggle-slider"></span>
+            <span class="toggle-label" id="notificationsToggleLabel">Notifications On</span>
+          </label>
+          <label class="toggle-chip" id="tradeLockToggleWrap">
+            <input id="tradeLockToggleInput" type="checkbox">
+            <span class="toggle-slider"></span>
+            <span class="toggle-label" id="tradeLockToggleLabel">Trade Lock Off</span>
+          </label>
+          <button class="theme-button" id="manageAccountsButton" type="button">Manage Accounts</button>
+          <button class="theme-button primary-button" id="connectButton" type="button">Connect to MT5</button>
+          <button class="theme-button" id="disconnectButton" type="button">Disconnect</button>
+          <button class="theme-button" id="depositsButton" type="button">Deposits</button>
+          <button class="theme-button" id="themeToggle" type="button">Toggle Theme</button>
+          <button class="theme-button danger-button" id="clearDbButton" type="button">Clear Database</button>
+        </div>
+      </div>
+    </header>
+
+    <section class="launch-banner hidden" id="launchBanner">
+      <div>
+        <strong>Open the dashboard from the local app server for the smoothest connection.</strong>
+        <p id="launchBannerText">If you opened the HTML file directly, use the local server URL instead.</p>
+      </div>
+      <a id="launchBannerLink" href="http://127.0.0.1:8765">Switch to Local Dashboard</a>
+    </section>
+
+    <section class="server-banner hidden" id="serverBanner">
+      <div>
+        <strong>Local server is not running.</strong>
+        <p id="serverBannerText">Start `run_metatrader_trade_observer.bat` and keep its terminal window open. The Connect button cannot work until the local server is running.</p>
+      </div>
+      <button class="theme-button primary-button" id="retryServerButton" type="button">Retry Connection</button>
+    </section>
+
+    <section class="panel page-section" data-page-panel="live">
+      <div class="panel-head">
+        <div>
+          <p class="panel-kicker">Quick Switch</p>
+          <h2>Detected MT5 Terminals</h2>
+        </div>
+      </div>
+      <div class="terminal-switch-grid" id="terminalSwitchGrid"></div>
+    </section>
+
+    <section class="panel page-section quick-guide" data-page-panel="tools">
+      <div class="panel-head">
+        <div>
+          <p class="panel-kicker">Quick Guide</p>
+          <h2>Enable The Backend</h2>
+        </div>
+      </div>
+      <div class="guide-steps">
+        <div class="guide-step">
+          <strong>1. Start the Python server</strong>
+          <p>Run `run_metatrader_trade_observer.bat` and keep that terminal window open.</p>
+        </div>
+        <div class="guide-step">
+          <strong>2. Open the local dashboard</strong>
+          <p>Use `http://127.0.0.1:8765` in your browser, not the HTML file directly.</p>
+        </div>
+        <div class="guide-step">
+          <strong>3. Connect to MetaTrader 5</strong>
+          <p>Once the page loads from the local server, click `Connect to MT5`.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel page-section" data-page-panel="tools">
+      <div class="panel-head">
+        <div>
+          <p class="panel-kicker">Alarm Tests</p>
+          <h2>Test Alert Sounds</h2>
+        </div>
+      </div>
+      <div class="alarm-test-grid" id="alarmTestGrid">
+        <button class="theme-button alarm-test-button" type="button" data-test-alarm="entry">Test Entry</button>
+        <button class="theme-button alarm-test-button" type="button" data-test-alarm="close">Test Close</button>
+        <button class="theme-button alarm-test-button" type="button" data-test-alarm="take_profit_reached">Test TP Hit</button>
+        <button class="theme-button alarm-test-button" type="button" data-test-alarm="take_profit_updated">Test TP Update</button>
+        <button class="theme-button alarm-test-button" type="button" data-test-alarm="approaching_stop">Test SL Warning</button>
+        <button class="theme-button alarm-test-button" type="button" data-test-alarm="stop_loss_hit">Test SL Hit</button>
+        <button class="theme-button alarm-test-button" type="button" data-test-alarm="stop_loss_updated">Test SL Update</button>
+        <button class="theme-button alarm-test-button" type="button" data-test-alarm="capital_warning">Test Capital Warning</button>
+        <button class="theme-button alarm-test-button" type="button" data-test-alarm="account_blown">Test Account Blown</button>
+        <button class="theme-button alarm-test-button" type="button" data-test-alarm="account_switched">Test Account Switch</button>
+      </div>
+    </section>
+
+    <section class="summary-grid page-section" data-page-panel="live">
+      <article class="panel stat-panel">
+        <span>Balance</span>
+        <strong id="balanceValue">$0.00</strong>
+        <small id="balanceMeta">Entry balance tracking</small>
+      </article>
+      <article class="panel stat-panel">
+        <span>Equity</span>
+        <strong id="equityValue">$0.00</strong>
+        <small id="equityMeta">Real-time fluctuation</small>
+      </article>
+      <article class="panel stat-panel">
+        <span>Floating P/L</span>
+        <strong id="profitValue">$0.00</strong>
+        <small id="profitMeta">Across open positions</small>
+      </article>
+      <article class="panel stat-panel">
+        <span>Account / Symbol</span>
+        <strong id="accountValue">-</strong>
+        <small id="serverMeta">Waiting for MT5</small>
+      </article>
+    </section>
+
+    <section class="layout-grid page-section" data-page-panel="live">
+      <article class="panel chart-panel">
+        <div class="panel-head">
+          <div>
+            <p class="panel-kicker">Live Motion</p>
+            <h2>Price Animation</h2>
+          </div>
+          <div class="legend">
+            <span class="dot up"></span>Up
+            <span class="dot down"></span>Down
+          </div>
+        </div>
+        <canvas id="priceCanvas" width="900" height="280"></canvas>
+      </article>
+
+      <article class="panel alerts-panel">
+        <div class="panel-head">
+          <div>
+            <p class="panel-kicker">Alerts</p>
+            <h2>Recent Notifications</h2>
+          </div>
+        </div>
+        <div id="alertsList" class="alerts-list"></div>
+      </article>
+    </section>
+
+    <section class="panel page-section" data-page-panel="live">
+      <div class="panel-head">
+        <div>
+          <p class="panel-kicker">Open Positions</p>
+          <h2>Live Trades</h2>
+        </div>
+      </div>
+      <div id="tradeCards" class="trade-cards"></div>
+    </section>
+
+    <section class="panel page-section" data-page-panel="live">
+      <div class="panel-head">
+        <div>
+          <p class="panel-kicker">Pending Orders</p>
+          <h2>Orders Waiting To Trigger</h2>
+        </div>
+      </div>
+      <div id="pendingOrderCards" class="trade-cards"></div>
+    </section>
+
+    <section class="panel page-section" data-page-panel="journal">
+      <div class="panel-head">
+        <div>
+          <p class="panel-kicker" id="journalKicker">SQLite Journal</p>
+          <h2 id="journalTitle">History & Filters</h2>
+        </div>
+        <div class="filters">
+          <label>
+            <span>Range</span>
+            <select id="rangeFilter">
+              <option value="today">Today</option>
+              <option value="2d">Last 2 Days</option>
+              <option value="2w">Last 2 Weeks</option>
+              <option value="month">Last 30 Days</option>
+              <option value="all">All</option>
+            </select>
+          </label>
+          <label>
+            <span>Specific Date</span>
+            <input id="dateFilter" type="date">
+          </label>
+          <label>
+            <span>Outcome</span>
+            <select id="outcomeFilter">
+              <option value="all">All</option>
+              <option value="profit">Profits</option>
+              <option value="loss">Losses</option>
+            </select>
+          </label>
+          <label>
+            <span>Lot Size</span>
+            <select id="lotFilter">
+              <option value="">All</option>
+            </select>
+          </label>
+          <label>
+            <span>Performance View</span>
+            <select id="specialFilter">
+              <option value="all">All Records</option>
+              <option value="best_day">Best Day</option>
+              <option value="worst_day">Worst Day</option>
+              <option value="best_trade">Best Trade</option>
+              <option value="worst_trade">Worst Trade</option>
+            </select>
+          </label>
+          <label class="toggle-filter">
+            <span>Journal Source</span>
+            <button class="theme-button" id="toggleHiddenTradesButton" type="button">Use MT5 History: Off</button>
+          </label>
+        </div>
+      </div>
+
+      <div class="journal-totals">
+        <div><span>Total Profit</span><strong id="totalProfitValue">$0.00</strong></div>
+        <div><span>Trades</span><strong id="totalTradesValue">0</strong></div>
+        <div><span>Wins</span><strong id="totalWinsValue">0</strong></div>
+        <div><span>Losses</span><strong id="totalLossesValue">0</strong></div>
+        <div><span>This Week</span><strong id="weeklyProfitValue">$0.00</strong><small id="weeklyTradesMeta">0 trades</small></div>
+        <div><span>This Month</span><strong id="monthlyProfitValue">$0.00</strong><small id="monthlyTradesMeta">0 trades</small></div>
+      </div>
+
+      <div id="journalDays" class="journal-days"></div>
+    </section>
+    
+    <section class="panel page-section analysis-page hidden-page" data-page-panel="analysis">
+      <div class="panel-head">
+        <div>
+          <p class="panel-kicker">XAUUSD Analysis</p>
+          <h2>Confluence Map & Candlestick Structure</h2>
+        </div>
+      </div>
+      <div class="analysis-topline">
+        <div><span>Symbol</span><strong id="analysisSymbol">XAUUSD</strong></div>
+        <div><span>Timeframe</span><strong id="analysisTimeframe">H1</strong></div>
+        <div><span>Bias</span><strong id="analysisBias">Neutral</strong></div>
+        <div><span>Current Price</span><strong id="analysisPrice">-</strong></div>
+        <label class="analysis-control">
+          <span>Chart Timeframe</span>
+          <select id="analysisTimeframeSelect">
+            <option value="M1">M1</option>
+            <option value="M5">M5</option>
+            <option value="M15">M15</option>
+            <option value="M30">M30</option>
+            <option value="H1" selected>H1</option>
+            <option value="H4">H4</option>
+            <option value="D1">D1</option>
+          </select>
+        </label>
+      </div>
+      <div class="analysis-banner neutral" id="analysisPrediction">Prediction will appear after candle data loads.</div>
+      <div class="analysis-session-strip">
+        <span>Open Markets</span>
+        <strong id="analysisOpenMarkets">No major market is currently open</strong>
+      </div>
+      <div class="analysis-chart-wrap">
+        <canvas id="analysisCanvas" width="1280" height="560"></canvas>
+      </div>
+      <div class="analysis-grid">
+        <article class="panel analysis-card">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Zones</p>
+              <h2>Support & Resistance</h2>
+            </div>
+          </div>
+          <div id="analysisZones" class="analysis-list"></div>
+        </article>
+        <article class="panel analysis-card">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Confluences</p>
+              <h2>Market Read</h2>
+            </div>
+          </div>
+          <div id="analysisConfluences" class="analysis-list"></div>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel page-section" data-page-panel="markets">
+      <div class="panel-head">
+        <div>
+          <p class="panel-kicker">Market Sessions</p>
+          <h2>Global Trading Clocks</h2>
+        </div>
+      </div>
+      <div class="analysis-topline markets-topline">
+        <div><span>Currently Open</span><strong id="marketsOpenNow">-</strong></div>
+        <div><span>Timezone</span><strong>UTC</strong></div>
+        <div><span>Last Updated</span><strong id="marketsUpdatedAt">-</strong></div>
+      </div>
+      <div class="markets-grid" id="marketsGrid"></div>
+    </section>
+    </main>
+  </div>
+
+  <div class="alarm-modal hidden" id="alarmModal" aria-hidden="true">
+    <div class="alarm-backdrop"></div>
+    <div class="alarm-dialog" id="alarmDialog">
+      <p class="alarm-kicker" id="alarmKicker">Alert</p>
+      <h2 id="alarmTitle">Alarm</h2>
+      <p class="alarm-copy" id="alarmMessage">Waiting for a trading event.</p>
+      <div class="alarm-meta">
+        <span id="alarmTradeMeta">Account-wide</span>
+        <span id="alarmTimeMeta">-</span>
+      </div>
+      <button class="alarm-stop-button" id="stopAlarmButton" type="button">Stop Alarm</button>
+    </div>
+  </div>
+
+  <div class="funding-modal hidden" id="fundingModal" aria-hidden="true">
+    <div class="alarm-backdrop"></div>
+    <div class="funding-dialog">
+      <div class="panel-head funding-head">
+        <div>
+          <p class="panel-kicker">Funding History</p>
+          <h2>Deposits Into Trading Account</h2>
+        </div>
+        <button class="theme-button" id="closeFundingButton" type="button">Close</button>
+      </div>
+      <div class="funding-totals">
+        <div><span>Total Deposits (USD)</span><strong id="depositTotalUsd">$0.00</strong></div>
+        <div><span>Total Deposits (GHS)</span><strong id="depositTotalGhs">GHS 0.00</strong></div>
+        <div><span>Entries</span><strong id="depositCount">0</strong></div>
+      </div>
+      <p class="funding-rate" id="depositRateText">Conversion: 1 GHS = $0.09 USD</p>
+      <div class="funding-list" id="fundingList"></div>
+    </div>
+  </div>
+
+  <div class="funding-modal hidden" id="accountsModal" aria-hidden="true">
+    <div class="alarm-backdrop"></div>
+    <div class="funding-dialog">
+      <div class="panel-head funding-head">
+        <div>
+          <p class="panel-kicker">Account Profiles</p>
+          <h2>Choose Which MT5 Account To Monitor</h2>
+        </div>
+        <button class="theme-button" id="closeAccountsButton" type="button">Close</button>
+      </div>
+      <p class="funding-rate">Use one saved profile per MT5 demo/live account or per terminal path. This is especially useful when one terminal runs your bot and another is for observing.</p>
+      <form class="account-form" id="accountProfileForm">
+        <label>
+          <span>Profile Name</span>
+          <input id="profileAliasInput" name="alias" type="text" placeholder="JamesANabiah (Main Exness Demo)" required>
+        </label>
+        <label>
+          <span>MT5 Login</span>
+          <input id="profileLoginInput" name="login" type="number" inputmode="numeric" placeholder="12345678">
+        </label>
+        <label>
+          <span>Password</span>
+          <input id="profilePasswordInput" name="password" type="password" placeholder="Password">
+        </label>
+        <label>
+          <span>Server</span>
+          <input id="profileServerInput" name="server" type="text" placeholder="Exness-MT5Trial">
+        </label>
+        <label>
+          <span>Terminal Path</span>
+          <input id="profileTerminalPathInput" name="terminal_path" type="text" placeholder="C:\Program Files\MetaTrader 5\terminal64.exe">
+        </label>
+        <label>
+          <span>Group</span>
+          <input id="profileGroupInput" name="group" type="text" placeholder="Demo or Live">
+        </label>
+        <div class="account-form-actions">
+          <button class="theme-button primary-button" id="saveAccountProfileButton" type="submit">Save Profile</button>
+        </div>
+      </form>
+      <div class="funding-list account-profile-list" id="accountProfilesList"></div>
+    </div>
+  </div>
+
+  <div class="toast-stack" id="toastStack" aria-live="polite" aria-atomic="true"></div>
+
+  <script src="/app.js?v=20260503a"></script>
+</body>
+</html>

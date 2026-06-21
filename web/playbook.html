@@ -1,0 +1,469 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MetaTrader Trade Observer</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/styles.css?v=20260503a">
+</head>
+<body data-current-page="playbook">
+  <div class="app-shell shell-layout">
+    <aside class="side-nav" id="sideNav">
+      <div class="side-nav-head">
+        <div>
+          <p class="eyebrow">MetaTrader Monitor</p>
+          <h2>Observer</h2>
+        </div>
+        <button class="theme-button nav-toggle" id="sideNavToggle" type="button">Collapse</button>
+      </div>
+      <nav class="page-nav side-page-nav" id="pageNav">
+        <a class="theme-button page-tab" href="/live" data-page="live" data-tooltip="Live Desk"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12l9-8 9 8"></path><path d="M5 10v10h14V10"></path></svg><span class="page-tab-label">Live Desk</span></a>
+        <a class="theme-button page-tab" href="/analysis" data-page="analysis" data-tooltip="Analysis"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16"></path><path d="M7 15l3-4 3 2 4-6"></path><circle cx="7" cy="15" r="1"></circle><circle cx="10" cy="11" r="1"></circle><circle cx="13" cy="13" r="1"></circle><circle cx="17" cy="7" r="1"></circle></svg><span class="page-tab-label">Analysis</span></a>
+        <a class="theme-button page-tab" href="/playbook" data-page="playbook" data-tooltip="Playbook"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h10a4 4 0 0 1 4 4v10H9a4 4 0 0 0-4 4z"></path><path d="M5 5v14a4 4 0 0 1 4-4h10"></path><path d="M9 9h6"></path><path d="M9 13h6"></path></svg><span class="page-tab-label">Playbook</span></a>
+        <a class="theme-button page-tab" href="/signal-lab" data-page="signal-lab" data-tooltip="Signal Lab"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3v4l-4 7a4 4 0 0 0 3.5 6h7a4 4 0 0 0 3.5-6l-4-7V3"></path><path d="M8 11h8"></path><path d="M10 15h4"></path></svg><span class="page-tab-label">Signal Lab</span></a>
+        <a class="theme-button page-tab" href="/charts" data-page="charts" data-tooltip="Charts"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16"></path><path d="M7 16V9"></path><path d="M12 14V5"></path><path d="M17 18v-8"></path><path d="M6 11h2"></path><path d="M11 8h2"></path><path d="M16 12h2"></path></svg><span class="page-tab-label">Charts</span></a>
+        <a class="theme-button page-tab" href="/xau-chart" data-page="xau-chart" data-tooltip="XAU Chart"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16"></path><path d="M8 6v12"></path><path d="M12 4v8"></path><path d="M16 9v9"></path><path d="M7 10h2"></path><path d="M11 7h2"></path><path d="M15 13h2"></path></svg><span class="page-tab-label">XAU Chart</span></a>
+        <a class="theme-button page-tab" href="/consolidation" data-page="consolidation" data-tooltip="Consolidation"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="8" width="16" height="8" rx="2"></rect><path d="M8 12h8"></path></svg><span class="page-tab-label">Consolidation</span></a>
+        <a class="theme-button page-tab" href="/calculator" data-page="calculator" data-tooltip="Calculator"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"></rect><path d="M8 7h8"></path><path d="M8 11h2"></path><path d="M12 11h2"></path><path d="M16 11h0"></path><path d="M8 15h2"></path><path d="M12 15h2"></path><path d="M16 15h0"></path></svg><span class="page-tab-label">Calculator</span></a>
+        <a class="theme-button page-tab" href="/risk" data-page="risk" data-tooltip="Risk Planner"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6l7-3z"></path><path d="M9 12l2 2 4-4"></path></svg><span class="page-tab-label">Risk Planner</span></a>
+        <a class="theme-button page-tab" href="/markets" data-page="markets" data-tooltip="Markets"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18"></path><path d="M12 3a15 15 0 0 1 0 18"></path><path d="M12 3a15 15 0 0 0 0 18"></path></svg><span class="page-tab-label">Markets</span></a>
+        <a class="theme-button page-tab" href="/security" data-page="security" data-tooltip="Security"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6l7-3z"></path><path d="M9.5 12.5l1.5 1.5 3.5-4"></path></svg><span class="page-tab-label">Security</span></a>
+        <a class="theme-button page-tab" href="/journal" data-page="journal" data-tooltip="Journal"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h9a3 3 0 0 1 3 3v13H9a3 3 0 0 0-3 3z"></path><path d="M6 4v16a3 3 0 0 1 3-3h9"></path><path d="M10 8h5"></path><path d="M10 12h5"></path></svg><span class="page-tab-label">Journal</span></a>
+        <a class="theme-button page-tab" href="/tools" data-page="tools" data-tooltip="Tools"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6V3"></path><path d="M12 21v-3"></path><path d="M6 12H3"></path><path d="M21 12h-3"></path><circle cx="12" cy="12" r="3"></circle><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.4 1a7 7 0 0 0-1.7-1L14 3h-4l-.8 3a7 7 0 0 0-1.7 1l-2.4-1-2 3.5L5.1 11a7 7 0 0 0 0 2L3.1 14.5l2 3.5 2.4-1a7 7 0 0 0 1.7 1l.8 3h4l.8-3a7 7 0 0 0 1.7-1l2.4 1 2-3.5-2-1.5c.1-.3.1-.7.1-1z"></path></svg><span class="page-tab-label">Tools</span></a>
+      </nav>
+    </aside>
+
+    <main class="main-shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Trading Playbook</p>
+        <h1>Strategy & Session Notes</h1>
+        <p class="hero-copy">A focused learning page for XAUUSD setups, session timing, and practical trade selection reminders.</p>
+      </div>
+      <div class="hero-meta">
+        <div class="status-pill ok">Reference Page</div>
+      </div>
+    </header>
+
+    <section class="panel page-section" data-page-panel="playbook">
+      <div class="panel-head">
+        <div>
+          <p class="panel-kicker">Strategy Notes</p>
+          <h2>High-Value XAUUSD Setups</h2>
+        </div>
+      </div>
+      <div class="info-pill-grid">
+        <details class="info-pill-card">
+          <summary><span class="info-pill-title">London Liquidity Sweep</span></summary>
+          <div class="info-pill-body">
+            <p>Gold often raids an Asian high or low shortly after London starts, then reverses once liquidity is taken. The cleaner setups are the ones where price sweeps a level, rejects fast, and then reclaims a nearby intraday structure point.</p>
+          </div>
+        </details>
+        <details class="info-pill-card">
+          <summary><span class="info-pill-title">New York Reversal</span></summary>
+          <div class="info-pill-body">
+            <p>This works best when London extends too far into a premium or discount zone and New York opens into exhaustion. Look for an aggressive wick, structure shift, and then a measured retracement entry instead of chasing the first spike.</p>
+          </div>
+        </details>
+        <details class="info-pill-card">
+          <summary><span class="info-pill-title">ORL-25 Expansion</span></summary>
+          <div class="info-pill-body">
+            <p>When the first session M15 range is already large enough relative to daily ATR, it can signal manipulation and set up a reversal later outside the box. The best signals happen when the breakout is obvious and the reversal candle appears close to the boundary instead of deep into no-man's land.</p>
+          </div>
+        </details>
+        <details class="info-pill-card">
+          <summary><span class="info-pill-title">HTF Pullback Continuation</span></summary>
+          <div class="info-pill-body">
+            <p>If H4 or D1 bias is already clean, many strong gold entries come from waiting for price to pull back into a higher-timeframe zone during London or New York. This tends to be calmer than trying to fade a trend, and it usually gives you tighter stops for better RR.</p>
+          </div>
+        </details>
+        <details class="info-pill-card">
+          <summary><span class="info-pill-title">Consolidation Breakout</span></summary>
+          <div class="info-pill-body">
+            <p>When gold compresses through multiple 5-minute candles and keeps rejecting the same boundaries, a later break can run hard. The better breakouts usually come after several failed attempts at one side, because that tells you liquidity has built up there.</p>
+          </div>
+        </details>
+        <details class="info-pill-card">
+          <summary><span class="info-pill-title">Support / Resistance Reaction</span></summary>
+          <div class="info-pill-body">
+            <p>Simple levels still work when they align with session timing, structure, and momentum context. The edge is not the level alone, but the confluence of level, session, rejection quality, and whether price arrived there impulsively or slowly.</p>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <section class="panel page-section" data-page-panel="playbook">
+      <div class="panel-head">
+        <div>
+          <p class="panel-kicker">Session Timing</p>
+          <h2>Best Windows To Trade</h2>
+        </div>
+      </div>
+      <div class="info-pill-grid">
+        <details class="info-pill-card">
+          <summary><span class="info-pill-title">Sydney Session</span></summary>
+          <div class="info-pill-body">
+            <p>Sydney is usually quieter for gold and major forex pairs. It is better for marking early range behavior than expecting explosive moves, unless there is a major macro catalyst already moving the market.</p>
+          </div>
+        </details>
+        <details class="info-pill-card">
+          <summary><span class="info-pill-title">Tokyo Session</span></summary>
+          <div class="info-pill-body">
+            <p>Tokyo often helps define the intraday range that London later attacks. If you trade gold, Tokyo can be useful for identifying the highs and lows that may later become liquidity targets rather than for forcing frequent entries.</p>
+          </div>
+        </details>
+        <details class="info-pill-card">
+          <summary><span class="info-pill-title">London Open</span></summary>
+          <div class="info-pill-body">
+            <p>London is one of the best times for volatility, structure shifts, and liquidity sweeps. For XAUUSD, many of the cleanest directional intraday moves start here, especially when London attacks an Asian range extreme and then expands decisively.</p>
+          </div>
+        </details>
+        <details class="info-pill-card">
+          <summary><span class="info-pill-title">New York Open</span></summary>
+          <div class="info-pill-body">
+            <p>New York can either continue London's move or reverse it sharply. This session is especially important for gold because U.S. flows, data releases, and overlap volatility can create the strongest setups of the day.</p>
+          </div>
+        </details>
+        <details class="info-pill-card">
+          <summary><span class="info-pill-title">London / New York Overlap</span></summary>
+          <div class="info-pill-body">
+            <p>This is usually the most active window of the day. If you want strong movement, clean confirmation, and enough volatility to hit targets quickly, this is often the best period to focus your attention.</p>
+          </div>
+        </details>
+        <details class="info-pill-card">
+          <summary><span class="info-pill-title">When To Stand Aside</span></summary>
+          <div class="info-pill-body">
+            <p>If price is stuck mid-range, if sessions are slow, or if your best setup has not appeared, protecting mental capital matters too. Many avoidable losses come from trading bad timing rather than from reading direction badly.</p>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <section class="panel page-section" data-page-panel="playbook">
+      <div class="panel-head">
+        <div>
+          <p class="panel-kicker">Execution Reminders</p>
+          <h2>Things Worth Checking Before Entry</h2>
+        </div>
+      </div>
+      <div class="info-pill-grid">
+        <details class="info-pill-card">
+          <summary><span class="info-pill-title">Is The Session Active?</span></summary>
+          <div class="info-pill-body">
+            <p>A good setup during dead time can still fail because the market lacks participation. Session timing is not a bonus detail for gold; it is often part of the setup itself.</p>
+          </div>
+        </details>
+        <details class="info-pill-card">
+          <summary><span class="info-pill-title">Is There Clear Liquidity?</span></summary>
+          <div class="info-pill-body">
+            <p>Ask where obvious highs, lows, equal highs, or equal lows are sitting. Many strong intraday moves begin after those pools get swept.</p>
+          </div>
+        </details>
+        <details class="info-pill-card">
+          <summary><span class="info-pill-title">Does RR Still Make Sense?</span></summary>
+          <div class="info-pill-body">
+            <p>Even a decent idea can become a bad trade if the stop is too large or the target is too close. If the market has already done most of the move, patience is often the better trade.</p>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <section class="panel page-section" data-page-panel="playbook">
+      <div class="panel-head">
+        <div>
+          <p class="panel-kicker">Market Concepts</p>
+          <h2>FVG, MSS, CHoCH, And More</h2>
+        </div>
+      </div>
+      <div class="info-pill-grid">
+        <details class="info-pill-card playbook-concept-card">
+          <summary><span class="info-pill-title">Fair Value Gap (FVG)</span></summary>
+          <div class="info-pill-body">
+            <p>An FVG is an imbalance left when price moves so aggressively that one candle's range does not overlap properly with the next one. In practice, traders often watch for price to revisit that gap and react before continuing in the original direction.</p>
+            <p><strong>Why it matters:</strong> it gives you a cleaner retracement area than chasing the first expansion candle.</p>
+            <div class="playbook-example-actions">
+              <button class="theme-button" type="button" data-playbook-example-toggle="fvg-bull">Bullish Example</button>
+              <button class="theme-button" type="button" data-playbook-example-toggle="fvg-bear">Bearish Example</button>
+            </div>
+            <div class="playbook-example-panel hidden-page" data-playbook-example-panel="fvg-bull">
+              <div class="playbook-mini-chart">
+                <svg viewBox="0 0 520 220" aria-hidden="true">
+                  <rect width="520" height="220" rx="18" fill="#d0d0d0"></rect>
+                  <rect x="218" y="64" width="56" height="48" fill="rgba(74, 163, 76, 0.26)" stroke="#2f8d48" stroke-dasharray="6 6"></rect>
+                  <line x1="0" y1="160" x2="520" y2="160" stroke="rgba(30,30,30,0.12)"></line>
+                  <line x1="0" y1="118" x2="520" y2="118" stroke="rgba(30,30,30,0.12)"></line>
+                  <g stroke="#111" stroke-width="2">
+                    <line x1="72" y1="160" x2="72" y2="114"></line><rect x="62" y="126" width="20" height="28" fill="#49a74b"></rect>
+                    <line x1="118" y1="146" x2="118" y2="92"></line><rect x="108" y="100" width="20" height="42" fill="#49a74b"></rect>
+                    <line x1="164" y1="134" x2="164" y2="74"></line><rect x="154" y="84" width="20" height="44" fill="#49a74b"></rect>
+                    <line x1="210" y1="124" x2="210" y2="58"></line><rect x="200" y="68" width="20" height="48" fill="#49a74b"></rect>
+                    <line x1="256" y1="132" x2="256" y2="96"></line><rect x="246" y="104" width="20" height="24" fill="#111"></rect>
+                    <line x1="302" y1="120" x2="302" y2="82"></line><rect x="292" y="88" width="20" height="30" fill="#49a74b"></rect>
+                    <line x1="348" y1="110" x2="348" y2="60"></line><rect x="338" y="70" width="20" height="34" fill="#49a74b"></rect>
+                    <line x1="394" y1="98" x2="394" y2="52"></line><rect x="384" y="58" width="20" height="34" fill="#49a74b"></rect>
+                  </g>
+                  <text x="282" y="58" font-size="13" fill="#124d1e" font-weight="700">Bullish FVG</text>
+                  <text x="280" y="136" font-size="12" fill="#111">price retraces into gap</text>
+                </svg>
+              </div>
+            </div>
+            <div class="playbook-example-panel hidden-page" data-playbook-example-panel="fvg-bear">
+              <div class="playbook-mini-chart">
+                <svg viewBox="0 0 520 220" aria-hidden="true">
+                  <rect width="520" height="220" rx="18" fill="#d0d0d0"></rect>
+                  <rect x="226" y="104" width="58" height="42" fill="rgba(185, 54, 54, 0.26)" stroke="#b73737" stroke-dasharray="6 6"></rect>
+                  <g stroke="#111" stroke-width="2">
+                    <line x1="82" y1="82" x2="82" y2="142"></line><rect x="72" y="88" width="20" height="42" fill="#111"></rect>
+                    <line x1="128" y1="92" x2="128" y2="152"></line><rect x="118" y="100" width="20" height="38" fill="#111"></rect>
+                    <line x1="174" y1="100" x2="174" y2="162"></line><rect x="164" y="108" width="20" height="42" fill="#111"></rect>
+                    <line x1="220" y1="110" x2="220" y2="176"></line><rect x="210" y="118" width="20" height="48" fill="#111"></rect>
+                    <line x1="266" y1="88" x2="266" y2="136"></line><rect x="256" y="94" width="20" height="30" fill="#49a74b"></rect>
+                    <line x1="312" y1="96" x2="312" y2="150"></line><rect x="302" y="102" width="20" height="36" fill="#111"></rect>
+                    <line x1="358" y1="108" x2="358" y2="166"></line><rect x="348" y="116" width="20" height="40" fill="#111"></rect>
+                    <line x1="404" y1="118" x2="404" y2="178"></line><rect x="394" y="126" width="20" height="42" fill="#111"></rect>
+                  </g>
+                  <text x="292" y="100" font-size="13" fill="#6d1010" font-weight="700">Bearish FVG</text>
+                  <text x="290" y="156" font-size="12" fill="#111">retest then continuation down</text>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <details class="info-pill-card playbook-concept-card">
+          <summary><span class="info-pill-title">MSS (Market Structure Shift)</span></summary>
+          <div class="info-pill-body">
+            <p>MSS is the moment price stops respecting one short-term structure direction and breaks the opposing structure point. In plain terms, it is the first serious clue that momentum has changed hands.</p>
+            <p><strong>Why it matters:</strong> it helps you avoid fading a sweep too early without confirmation.</p>
+            <div class="playbook-example-actions">
+              <button class="theme-button" type="button" data-playbook-example-toggle="mss-bear">Bearish Shift</button>
+              <button class="theme-button" type="button" data-playbook-example-toggle="mss-bull">Bullish Shift</button>
+            </div>
+            <div class="playbook-example-panel hidden-page" data-playbook-example-panel="mss-bear">
+              <div class="playbook-mini-chart">
+                <svg viewBox="0 0 520 220" aria-hidden="true">
+                  <rect width="520" height="220" rx="18" fill="#d0d0d0"></rect>
+                  <polyline points="60,152 120,126 180,108 240,88 300,116 360,146 430,164" fill="none" stroke="#111" stroke-width="3"></polyline>
+                  <line x1="210" y1="76" x2="210" y2="178" stroke="#b73737" stroke-dasharray="6 6"></line>
+                  <line x1="292" y1="118" x2="420" y2="118" stroke="#2f8d48" stroke-dasharray="6 6"></line>
+                  <text x="220" y="72" font-size="12" fill="#6d1010">liquidity sweep</text>
+                  <text x="318" y="110" font-size="12" fill="#124d1e">minor low broken = MSS</text>
+                </svg>
+              </div>
+            </div>
+            <div class="playbook-example-panel hidden-page" data-playbook-example-panel="mss-bull">
+              <div class="playbook-mini-chart">
+                <svg viewBox="0 0 520 220" aria-hidden="true">
+                  <rect width="520" height="220" rx="18" fill="#d0d0d0"></rect>
+                  <polyline points="70,72 136,96 198,126 258,154 326,124 388,96 446,80" fill="none" stroke="#111" stroke-width="3"></polyline>
+                  <line x1="252" y1="62" x2="252" y2="170" stroke="#2f8d48" stroke-dasharray="6 6"></line>
+                  <line x1="292" y1="122" x2="426" y2="122" stroke="#b73737" stroke-dasharray="6 6"></line>
+                  <text x="262" y="58" font-size="12" fill="#124d1e">liquidity sweep</text>
+                  <text x="300" y="114" font-size="12" fill="#6d1010">minor high broken = MSS</text>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <details class="info-pill-card playbook-concept-card">
+          <summary><span class="info-pill-title">CHoCH (Change Of Character)</span></summary>
+          <div class="info-pill-body">
+            <p>CHoCH is the first more obvious break that tells you the market's behavior has changed. Traders often use it almost interchangeably with MSS, but CHoCH usually describes the broader shift in rhythm rather than just one minor structure break.</p>
+            <p><strong>Why it matters:</strong> it helps frame whether you are catching a deeper reversal or just a brief pullback.</p>
+            <div class="playbook-example-actions">
+              <button class="theme-button" type="button" data-playbook-example-toggle="choch">Show Example</button>
+            </div>
+            <div class="playbook-example-panel hidden-page" data-playbook-example-panel="choch">
+              <div class="playbook-mini-chart">
+                <svg viewBox="0 0 520 220" aria-hidden="true">
+                  <rect width="520" height="220" rx="18" fill="#d0d0d0"></rect>
+                  <polyline points="58,86 108,102 160,120 212,136 266,156 320,132 374,102 432,84" fill="none" stroke="#111" stroke-width="3"></polyline>
+                  <line x1="252" y1="60" x2="252" y2="172" stroke="#b73737" stroke-dasharray="6 6"></line>
+                  <line x1="315" y1="130" x2="315" y2="172" stroke="#2f8d48" stroke-dasharray="6 6"></line>
+                  <text x="186" y="54" font-size="12" fill="#6d1010">old bearish rhythm ends</text>
+                  <text x="324" y="126" font-size="12" fill="#124d1e">CHoCH into bullish leg</text>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <details class="info-pill-card playbook-concept-card">
+          <summary><span class="info-pill-title">Order Block</span></summary>
+          <div class="info-pill-body">
+            <p>A basic order block is the last opposite candle before an impulsive move that causes displacement. The idea is that if price returns there cleanly, it can react again because that zone helped launch the original push.</p>
+            <p><strong>Why it matters:</strong> it gives you a tighter retracement zone than entering randomly after a sweep.</p>
+            <div class="playbook-example-actions">
+              <button class="theme-button" type="button" data-playbook-example-toggle="ob-bull">Bullish Example</button>
+              <button class="theme-button" type="button" data-playbook-example-toggle="ob-bear">Bearish Example</button>
+            </div>
+            <div class="playbook-example-panel hidden-page" data-playbook-example-panel="ob-bull">
+              <div class="playbook-mini-chart">
+                <svg viewBox="0 0 520 220" aria-hidden="true">
+                  <rect width="520" height="220" rx="18" fill="#d0d0d0"></rect>
+                  <rect x="174" y="118" width="42" height="32" fill="rgba(74, 163, 76, 0.28)" stroke="#2f8d48"></rect>
+                  <polyline points="64,156 112,142 160,130 208,116 264,76 332,86 390,72 446,54" fill="none" stroke="#111" stroke-width="3"></polyline>
+                  <text x="152" y="112" font-size="12" fill="#124d1e">bullish OB</text>
+                  <text x="238" y="74" font-size="12" fill="#124d1e">displacement out</text>
+                </svg>
+              </div>
+            </div>
+            <div class="playbook-example-panel hidden-page" data-playbook-example-panel="ob-bear">
+              <div class="playbook-mini-chart">
+                <svg viewBox="0 0 520 220" aria-hidden="true">
+                  <rect width="520" height="220" rx="18" fill="#d0d0d0"></rect>
+                  <rect x="192" y="82" width="44" height="28" fill="rgba(185, 54, 54, 0.28)" stroke="#b73737"></rect>
+                  <polyline points="72,64 124,84 180,94 230,108 290,152 352,142 404,156 450,172" fill="none" stroke="#111" stroke-width="3"></polyline>
+                  <text x="174" y="76" font-size="12" fill="#6d1010">bearish OB</text>
+                  <text x="250" y="154" font-size="12" fill="#6d1010">displacement out</text>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <details class="info-pill-card playbook-concept-card">
+          <summary><span class="info-pill-title">Liquidity Sweep</span></summary>
+          <div class="info-pill-body">
+            <p>A liquidity sweep happens when price takes an obvious high or low, triggers breakout traders or resting stops, and then quickly rejects. On gold, this is one of the cleanest ways the market creates fuel before a reversal or expansion.</p>
+            <p><strong>Why it matters:</strong> it tells you where the market may have grabbed orders before moving the other way.</p>
+            <div class="playbook-example-actions">
+              <button class="theme-button" type="button" data-playbook-example-toggle="sweep-high">High Sweep</button>
+              <button class="theme-button" type="button" data-playbook-example-toggle="sweep-low">Low Sweep</button>
+            </div>
+            <div class="playbook-example-panel hidden-page" data-playbook-example-panel="sweep-high">
+              <div class="playbook-mini-chart">
+                <svg viewBox="0 0 520 220" aria-hidden="true">
+                  <rect width="520" height="220" rx="18" fill="#d0d0d0"></rect>
+                  <line x1="132" y1="82" x2="396" y2="82" stroke="#111" stroke-dasharray="6 6"></line>
+                  <polyline points="64,142 116,108 168,84 220,86 272,74 320,102 374,126 428,150" fill="none" stroke="#111" stroke-width="3"></polyline>
+                  <text x="146" y="74" font-size="12" fill="#111">equal highs / obvious liquidity</text>
+                  <text x="280" y="66" font-size="12" fill="#6d1010">sweep above then reject</text>
+                </svg>
+              </div>
+            </div>
+            <div class="playbook-example-panel hidden-page" data-playbook-example-panel="sweep-low">
+              <div class="playbook-mini-chart">
+                <svg viewBox="0 0 520 220" aria-hidden="true">
+                  <rect width="520" height="220" rx="18" fill="#d0d0d0"></rect>
+                  <line x1="118" y1="154" x2="390" y2="154" stroke="#111" stroke-dasharray="6 6"></line>
+                  <polyline points="68,88 120,118 174,146 226,152 280,166 336,126 392,102 446,78" fill="none" stroke="#111" stroke-width="3"></polyline>
+                  <text x="132" y="172" font-size="12" fill="#111">equal lows / obvious liquidity</text>
+                  <text x="272" y="182" font-size="12" fill="#124d1e">sweep below then reject</text>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <section class="panel page-section" data-page-panel="playbook">
+      <div class="panel-head">
+        <div>
+          <p class="panel-kicker">Deep Dive</p>
+          <h2>Trend-Continuation Liquidity Fakeout Model</h2>
+        </div>
+      </div>
+      <div class="analysis-grid">
+        <article class="panel analysis-card">
+          <div class="analysis-list">
+            <article class="analysis-item neutral">
+              <strong>What This Lesson Covers</strong>
+              <p>A bearish or bullish day bias, a New York fakeout against that bias, 5-minute confirmation, and a cleaner continuation entry instead of rushing the first reaction candle.</p>
+            </article>
+            <article class="analysis-item neutral">
+              <strong>How To Use It</strong>
+              <p>Open the lesson modal and move through the steps in order. Each step lets you switch between an illustration chart and a live XAU chart so you can connect the concept to current price action.</p>
+            </article>
+          </div>
+          <div class="account-form-actions">
+            <button class="theme-button primary-button" id="openFakeoutLessonButton" type="button">Open Step-By-Step Lesson</button>
+          </div>
+        </article>
+      </div>
+    </section>
+
+  </main>
+  </div>
+
+  <div class="lesson-modal hidden" id="fakeoutLessonModal" aria-hidden="true">
+    <div class="alarm-backdrop"></div>
+    <div class="lesson-dialog">
+      <div class="panel-head lesson-head">
+        <div>
+          <p class="panel-kicker">Playbook Lesson</p>
+          <h2>Trend-Continuation Liquidity Fakeout Model</h2>
+        </div>
+        <button class="theme-button" id="closeFakeoutLessonButton" type="button">Close</button>
+      </div>
+      <div class="analysis-banner neutral lesson-banner">
+        I trade New York fakeouts that go against the day’s main trend, then wait for 5M confirmation before entering back with the original bias.
+      </div>
+      <div class="lesson-layout">
+        <aside class="lesson-stepper" id="fakeoutLessonStepper"></aside>
+        <section class="lesson-stage">
+          <div class="lesson-stage-head">
+            <div>
+              <p class="panel-kicker" id="fakeoutLessonStepKicker">Step 1</p>
+              <h3 id="fakeoutLessonStepTitle">Define the daily bias</h3>
+            </div>
+            <div class="chart-timeframe-strip lesson-chart-toggle" id="fakeoutLessonViewToggle">
+              <button class="theme-button active" type="button" data-fakeout-view="illustration">Illustration</button>
+              <button class="theme-button" type="button" data-fakeout-view="live">Live XAU Chart</button>
+            </div>
+          </div>
+          <div class="lesson-chart-shell">
+            <div class="lesson-chart-panel" id="fakeoutIllustrationPanel">
+              <div class="lesson-chart-caption">Illustration</div>
+              <div class="lesson-illustration-frame" id="fakeoutLessonIllustration"></div>
+            </div>
+            <div class="lesson-chart-panel hidden-page" id="fakeoutLivePanel">
+              <div class="lesson-chart-caption">Live XAU Chart</div>
+              <canvas id="fakeoutLessonLiveCanvas" width="1280" height="700"></canvas>
+            </div>
+          </div>
+          <div class="lesson-copy-grid">
+            <article class="analysis-item neutral">
+              <strong>Step Explanation</strong>
+              <div id="fakeoutLessonBody"></div>
+            </article>
+            <article class="analysis-item neutral">
+              <strong>Checklist</strong>
+              <div id="fakeoutLessonChecklist"></div>
+            </article>
+          </div>
+          <div class="lesson-footer">
+            <button class="theme-button" id="fakeoutLessonPrevButton" type="button">Previous Step</button>
+            <button class="theme-button primary-button" id="fakeoutLessonNextButton" type="button">Next Step</button>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js?v=20260526a"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      document.querySelectorAll("[data-playbook-example-toggle]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const targetKey = button.getAttribute("data-playbook-example-toggle") || "";
+          const card = button.closest(".playbook-concept-card");
+          if (!card || !targetKey) return;
+          const targetPanel = card.querySelector(`[data-playbook-example-panel="${targetKey}"]`);
+          if (!targetPanel) return;
+          const willShow = targetPanel.classList.contains("hidden-page");
+          card.querySelectorAll("[data-playbook-example-panel]").forEach((panel) => {
+            panel.classList.add("hidden-page");
+          });
+          if (willShow) {
+            targetPanel.classList.remove("hidden-page");
+          }
+        });
+      });
+    });
+  </script>
+</body>
+</html>

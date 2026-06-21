@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MetaTrader Trade Observer</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/styles.css?v=20260517d">
+</head>
+<body data-current-page="signal-lab">
+  <div class="app-shell shell-layout">
+    <aside class="side-nav" id="sideNav">
+      <div class="side-nav-head">
+        <div>
+          <p class="eyebrow">MetaTrader Monitor</p>
+          <h2>Observer</h2>
+        </div>
+        <button class="theme-button nav-toggle" id="sideNavToggle" type="button">Collapse</button>
+      </div>
+      <nav class="page-nav side-page-nav" id="pageNav">
+        <a class="theme-button page-tab" href="/live" data-page="live" data-tooltip="Live Desk"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12l9-8 9 8"></path><path d="M5 10v10h14V10"></path></svg><span class="page-tab-label">Live Desk</span></a>
+        <a class="theme-button page-tab" href="/analysis" data-page="analysis" data-tooltip="Analysis"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16"></path><path d="M7 15l3-4 3 2 4-6"></path><circle cx="7" cy="15" r="1"></circle><circle cx="10" cy="11" r="1"></circle><circle cx="13" cy="13" r="1"></circle><circle cx="17" cy="7" r="1"></circle></svg><span class="page-tab-label">Analysis</span></a>
+        <a class="theme-button page-tab" href="/playbook" data-page="playbook" data-tooltip="Playbook"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h10a4 4 0 0 1 4 4v10H9a4 4 0 0 0-4 4z"></path><path d="M5 5v14a4 4 0 0 1 4-4h10"></path><path d="M9 9h6"></path><path d="M9 13h6"></path></svg><span class="page-tab-label">Playbook</span></a>
+        <a class="theme-button page-tab" href="/signal-lab" data-page="signal-lab" data-tooltip="Signal Lab"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3v4l-4 7a4 4 0 0 0 3.5 6h7a4 4 0 0 0 3.5-6l-4-7V3"></path><path d="M8 11h8"></path><path d="M10 15h4"></path></svg><span class="page-tab-label">Signal Lab</span></a>
+        <a class="theme-button page-tab" href="/charts" data-page="charts" data-tooltip="Charts"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16"></path><path d="M7 16V9"></path><path d="M12 14V5"></path><path d="M17 18v-8"></path><path d="M6 11h2"></path><path d="M11 8h2"></path><path d="M16 12h2"></path></svg><span class="page-tab-label">Charts</span></a>
+        <a class="theme-button page-tab" href="/xau-chart" data-page="xau-chart" data-tooltip="XAU Chart"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16"></path><path d="M8 6v12"></path><path d="M12 4v8"></path><path d="M16 9v9"></path><path d="M7 10h2"></path><path d="M11 7h2"></path><path d="M15 13h2"></path></svg><span class="page-tab-label">XAU Chart</span></a>
+        <a class="theme-button page-tab" href="/consolidation" data-page="consolidation" data-tooltip="Consolidation"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="8" width="16" height="8" rx="2"></rect><path d="M8 12h8"></path></svg><span class="page-tab-label">Consolidation</span></a>
+        <a class="theme-button page-tab" href="/calculator" data-page="calculator" data-tooltip="Calculator"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"></rect><path d="M8 7h8"></path><path d="M8 11h2"></path><path d="M12 11h2"></path><path d="M16 11h0"></path><path d="M8 15h2"></path><path d="M12 15h2"></path><path d="M16 15h0"></path></svg><span class="page-tab-label">Calculator</span></a>
+        <a class="theme-button page-tab" href="/risk" data-page="risk" data-tooltip="Risk Planner"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6l7-3z"></path><path d="M9 12l2 2 4-4"></path></svg><span class="page-tab-label">Risk Planner</span></a>
+        <a class="theme-button page-tab" href="/markets" data-page="markets" data-tooltip="Markets"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18"></path><path d="M12 3a15 15 0 0 1 0 18"></path><path d="M12 3a15 15 0 0 0 0 18"></path></svg><span class="page-tab-label">Markets</span></a>
+        <a class="theme-button page-tab" href="/security" data-page="security" data-tooltip="Security"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6l7-3z"></path><path d="M9.5 12.5l1.5 1.5 3.5-4"></path></svg><span class="page-tab-label">Security</span></a>
+        <a class="theme-button page-tab" href="/journal" data-page="journal" data-tooltip="Journal"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h9a3 3 0 0 1 3 3v13H9a3 3 0 0 0-3 3z"></path><path d="M6 4v16a3 3 0 0 1 3-3h9"></path><path d="M10 8h5"></path><path d="M10 12h5"></path></svg><span class="page-tab-label">Journal</span></a>
+        <a class="theme-button page-tab" href="/tools" data-page="tools" data-tooltip="Tools"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6V3"></path><path d="M12 21v-3"></path><path d="M6 12H3"></path><path d="M21 12h-3"></path><circle cx="12" cy="12" r="3"></circle><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.4 1a7 7 0 0 0-1.7-1L14 3h-4l-.8 3a7 7 0 0 0-1.7 1l-2.4-1-2 3.5L5.1 11a7 7 0 0 0 0 2L3.1 14.5l2 3.5 2.4-1a7 7 0 0 0 1.7 1l.8 3h4l.8-3a7 7 0 0 0 1.7-1l2.4 1 2-3.5-2-1.5c.1-.3.1-.7.1-1z"></path></svg><span class="page-tab-label">Tools</span></a>
+      </nav>
+    </aside>
+
+    <main class="main-shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Signal Lab</p>
+          <h1>Telegram Signal Replay & Research</h1>
+          <p class="hero-copy">Paste raw Telegram signals, validate them, replay them against MT5 history, simulate account growth, and reverse-engineer the provider's setup logic.</p>
+        </div>
+        <div class="hero-meta">
+          <div class="status-pill ok" id="signalLabStatusPill">Analysis/backtesting mode only</div>
+          <div class="toolbar">
+            <select class="theme-button toolbar-select" id="accountProfileSelect">
+              <option value="">Default MT5 Session</option>
+            </select>
+            <label class="toggle-chip" id="emailToggleWrap">
+              <input id="emailToggleInput" type="checkbox">
+              <span class="toggle-slider"></span>
+              <span class="toggle-label" id="emailToggleLabel">Gmail Alerts</span>
+            </label>
+            <label class="toggle-chip" id="notificationsToggleWrap">
+              <input id="notificationsToggleInput" type="checkbox" checked>
+              <span class="toggle-slider"></span>
+              <span class="toggle-label" id="notificationsToggleLabel">Notifications On</span>
+            </label>
+            <label class="toggle-chip" id="tradeLockToggleWrap">
+              <input id="tradeLockToggleInput" type="checkbox">
+              <span class="toggle-slider"></span>
+              <span class="toggle-label" id="tradeLockToggleLabel">Trade Lock Off</span>
+            </label>
+            <button class="theme-button" id="manageAccountsButton" type="button">Manage Accounts</button>
+            <button class="theme-button primary-button" id="connectButton" type="button">Connect to MT5</button>
+            <button class="theme-button" id="disconnectButton" type="button">Disconnect</button>
+            <button class="theme-button" id="themeToggle" type="button">Toggle Theme</button>
+          </div>
+        </div>
+      </header>
+
+      <section class="panel page-section" data-page-panel="signal-lab">
+        <div class="panel-head">
+          <div>
+            <p class="panel-kicker">Safety</p>
+            <h2>Research Mode Only</h2>
+          </div>
+        </div>
+        <div class="signal-lab-banner">
+          <strong>Analysis/backtesting mode only. This page does not place live trades.</strong>
+          <p>Use Signal Lab to paste old/new Telegram signals, validate them, replay them, and simulate account balance changes without auto-trading.</p>
+        </div>
+      </section>
+
+      <section class="layout-grid page-section signal-lab-two-col" data-page-panel="signal-lab">
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Import Panel</p>
+              <h2>Signal Importer</h2>
+            </div>
+          </div>
+          <div class="signal-lab-form-grid">
+            <label>
+              <span>Imported Batches</span>
+              <select id="signalLabBatchSelect"></select>
+            </label>
+            <label style="grid-column: 1 / -1;">
+              <span>Paste Raw Telegram Signals</span>
+              <textarea id="signalLabRawTextInput" class="signal-lab-paste-box" placeholder="1st April: 12:06PM&#10;XAUUSD ENTRY: SELL 4749 Limit 4750&#10;STOP LOSS: 4760&#10;TP1: 4745:00&#10;TP2: 4740:00&#10;TP3: 4735:00&#10;TP4: 4730:00"></textarea>
+            </label>
+          </div>
+          <div class="toolbar signal-lab-toolbar">
+            <button class="theme-button primary-button" id="signalLabImportTextButton" type="button">Import Pasted Signals</button>
+            <button class="theme-button" id="signalLabImportMt5LogsButton" type="button">Import MT5 Tester Logs</button>
+            <button class="theme-button" id="signalLabRefreshButton" type="button">Reload Batch</button>
+            <button class="theme-button danger-button" id="signalLabClearBatchesButton" type="button">Clear All Batches</button>
+          </div>
+          <div class="muted-inline" id="signalLabImportMessage">Paste raw Telegram-style XAUUSD signals here, or import MT5 Strategy Tester logs from the JamesANabiah terminal. Signal Lab uses XAUUSDm for MT5 replay and tester-log analysis.</div>
+        </article>
+      </section>
+
+      <section class="layout-grid page-section signal-lab-two-col" data-page-panel="signal-lab">
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Backtest Controls</p>
+              <h2>Replay Settings</h2>
+            </div>
+          </div>
+          <div class="signal-lab-form-grid">
+            <label><span>Timeframe</span><select id="signalLabTimeframe"><option value="M1">M1</option><option value="M5">M5</option><option value="M15">M15</option></select></label>
+            <label><span>Replay Window (Hours)</span><input id="signalLabReplayHours" type="number" min="1" value="24"></label>
+            <label><span>Range Preset</span><select id="signalLabRangePreset"><option value="all">All Imported Signals</option><option value="week">Last Week In Batch</option><option value="month">Last Month In Batch</option><option value="custom">Custom Range</option></select></label>
+            <label><span>From Date</span><input id="signalLabFromDate" type="date"></label>
+            <label><span>To Date</span><input id="signalLabToDate" type="date"></label>
+            <label><span>Entry Mode</span><select id="signalLabEntryMode"><option value="MARKET">MARKET</option><option value="LIMIT">LIMIT</option><option value="BOTH">BOTH</option></select></label>
+            <label><span>Entry Tolerance</span><input id="signalLabEntryTolerance" type="number" step="0.1" value="0"></label>
+            <label><span>Exit Model</span><select id="signalLabExitModel"><option value="TP1_ONLY">TP1_ONLY</option><option value="TP2_ONLY">TP2_ONLY</option><option value="TP3_ONLY">TP3_ONLY</option><option value="TP4_ONLY">TP4_ONLY</option><option value="TP1_BE_TP2">TP1_BE_TP2</option><option value="TP1_BE_TP3">TP1_BE_TP3</option><option value="CUSTOM_TP">CUSTOM_TP</option><option value="MULTI_POSITION">MULTI_POSITION</option></select></label>
+            <label><span>Custom TP Index</span><input id="signalLabCustomTpIndex" type="number" min="1" max="8" value="1"></label>
+          </div>
+          <div class="toolbar signal-lab-toolbar">
+            <button class="theme-button primary-button" id="signalLabRunBacktestButton" type="button">Run Replay</button>
+            <button class="theme-button danger-button" id="signalLabResetResultsButton" type="button">Reset Results</button>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Account Simulation</p>
+              <h2>Balance Growth / Reduction</h2>
+            </div>
+          </div>
+          <div class="signal-lab-form-grid">
+            <label><span>Starting Balance</span><input id="signalLabStartingBalance" type="number" step="0.01" value="50"></label>
+            <label><span>Lot Size Mode</span><select id="signalLabLotMode"><option value="fixed">fixed</option><option value="risk_based">risk_based</option></select></label>
+            <label><span>Fixed Lot Size</span><input id="signalLabFixedLot" type="number" step="0.01" value="0.01"></label>
+            <label><span>Risk Percent</span><input id="signalLabRiskPercent" type="number" step="0.1" value="1"></label>
+            <label><span>Profit Per $1 Move @ 0.01 Lot</span><input id="signalLabDollarValue" type="number" step="0.1" value="1"></label>
+            <label><span>Commission / Trade</span><input id="signalLabCommission" type="number" step="0.01" value="0"></label>
+            <label><span>Spread Cost</span><input id="signalLabSpread" type="number" step="0.01" value="0"></label>
+          </div>
+          <div class="muted-inline" id="signalLabLotWarning">For small accounts like $50, full-close TP simulation is usually more realistic when your total lot size is 0.01.</div>
+        </article>
+      </section>
+
+      <section class="summary-grid page-section" data-page-panel="signal-lab" id="signalLabSummaryCards"></section>
+
+      <section class="panel page-section" data-page-panel="signal-lab">
+        <div class="panel-head">
+          <div>
+            <p class="panel-kicker">Strategy Detective Dashboard</p>
+            <h2>Repeated Patterns In Winners And Losers</h2>
+          </div>
+        </div>
+        <div id="signalLabDetectiveSummary" class="analysis-list">
+          <div class="empty-state">Run replay to compare repeated features across winning and losing signals.</div>
+        </div>
+      </section>
+
+      <section class="layout-grid page-section signal-lab-two-col" data-page-panel="signal-lab">
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Validation Results</p>
+              <h2>Invalid Signals</h2>
+            </div>
+          </div>
+          <div class="table-wrap signal-lab-table-wrap">
+            <table>
+              <thead><tr><th>ID</th><th>Date</th><th>Time</th><th>Symbol</th><th>Direction</th><th>Reason</th><th>Edit</th></tr></thead>
+              <tbody id="signalLabInvalidBody"><tr><td colspan="7"><div class="empty-state">Import a batch to review invalid rows.</div></td></tr></tbody>
+            </table>
+          </div>
+        </article>
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Signal Editor</p>
+              <h2>Fix Invalid Rows</h2>
+            </div>
+          </div>
+          <div class="signal-lab-form-grid">
+            <input id="signalLabEditId" type="hidden">
+            <label><span>Date</span><input id="signalLabEditDate" type="date"></label>
+            <label><span>Time GMT</span><input id="signalLabEditTime" type="time"></label>
+            <label><span>Symbol</span><input id="signalLabEditSymbol" type="text"></label>
+            <label><span>Direction</span><select id="signalLabEditDirection"><option value="BUY">BUY</option><option value="SELL">SELL</option></select></label>
+            <label><span>Entry</span><input id="signalLabEditEntry" type="number" step="0.001"></label>
+            <label><span>Limit Price</span><input id="signalLabEditLimit" type="number" step="0.001"></label>
+            <label><span>Stop Loss</span><input id="signalLabEditStop" type="number" step="0.001"></label>
+            <label><span>TP1</span><input id="signalLabEditTp1" type="number" step="0.001"></label>
+            <label><span>TP2</span><input id="signalLabEditTp2" type="number" step="0.001"></label>
+            <label><span>TP3</span><input id="signalLabEditTp3" type="number" step="0.001"></label>
+            <label><span>TP4</span><input id="signalLabEditTp4" type="number" step="0.001"></label>
+          </div>
+          <div class="toolbar signal-lab-toolbar">
+            <button class="theme-button primary-button" id="signalLabSaveEditButton" type="button">Save Signal Fix</button>
+          </div>
+          <div class="muted-inline" id="signalLabEditMessage">Choose an invalid row to edit it here.</div>
+        </article>
+      </section>
+
+      <section class="panel page-section" data-page-panel="signal-lab">
+        <div class="panel-head">
+          <div>
+            <p class="panel-kicker">Signal Results</p>
+            <h2>Replay Outcomes Table</h2>
+          </div>
+        </div>
+        <div class="table-wrap signal-lab-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th><th>Time GMT</th><th>Symbol</th><th>Direction</th><th>Entry</th><th>Limit</th><th>SL</th><th>TP1</th><th>TP2</th><th>TP3</th><th>TP4</th><th>Entry Filled</th><th>Outcome</th><th>First Outcome</th><th>Balance Before</th><th>P/L</th><th>Balance After</th><th>Setup</th><th>Confidence</th>
+              </tr>
+            </thead>
+            <tbody id="signalLabResultsBody"><tr><td colspan="19"><div class="empty-state">Run a replay to populate results.</div></td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="layout-grid page-section signal-lab-two-col" data-page-panel="signal-lab">
+        <article class="panel chart-panel">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Chart Preview</p>
+              <h2>Signal Overlay</h2>
+            </div>
+            <div class="filters">
+              <label><span>Preview TF</span><select id="signalLabPreviewTimeframe"><option value="M1">M1</option><option value="M5" selected>M5</option><option value="M15">M15</option><option value="H1">H1</option></select></label>
+            </div>
+          </div>
+          <canvas id="signalLabPreviewCanvas" width="1000" height="320"></canvas>
+          <div class="muted-inline" id="signalLabPreviewMeta">Select a result row to preview the chart context and levels.</div>
+        </article>
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Strategy Detective</p>
+              <h2>Likely Setup & Evidence</h2>
+            </div>
+          </div>
+          <div id="signalLabDetectiveCard" class="analysis-list">
+            <div class="empty-state">Strategy Detective results will appear here after you select a signal result.</div>
+          </div>
+        </article>
+      </section>
+
+      <section class="layout-grid page-section signal-lab-two-col" data-page-panel="signal-lab">
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Analytics</p>
+              <h2>Equity Curve & Exit Comparison</h2>
+            </div>
+          </div>
+          <div id="signalLabEquityCurve" class="signal-lab-bars"><div class="empty-state">Equity curve will appear after replay.</div></div>
+          <div id="signalLabExitComparison" class="signal-lab-bars"><div class="empty-state">Exit model comparison will appear after replay.</div></div>
+        </article>
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Export Section</p>
+              <h2>Downloads</h2>
+            </div>
+          </div>
+          <div class="toolbar signal-lab-toolbar signal-lab-export-grid">
+            <button class="theme-button" data-export-type="validated_csv" type="button">Validated CSV</button>
+            <button class="theme-button" data-export-type="invalid_csv" type="button">Invalid CSV</button>
+            <button class="theme-button" data-export-type="backtest_csv" type="button">Backtest CSV</button>
+            <button class="theme-button" data-export-type="features_csv" type="button">Detective CSV</button>
+            <button class="theme-button" data-export-type="equity_curve_csv" type="button">Equity Curve CSV</button>
+            <button class="theme-button primary-button" data-export-type="analytics_xlsx" type="button">Full Analytics XLSX</button>
+          </div>
+        </article>
+      </section>
+
+      <section class="panel page-section" data-page-panel="signal-lab">
+        <div class="panel-head">
+          <div>
+            <p class="panel-kicker">Backend Logs</p>
+            <h2>Signal Lab Activity</h2>
+          </div>
+        </div>
+        <div id="signalLabLogViewer" class="signal-lab-log-viewer"><div class="empty-state">Signal Lab logs will appear here.</div></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/app.js?v=20260517d"></script>
+  <script src="/signal_lab.js?v=20260517d"></script>
+</body>
+</html>

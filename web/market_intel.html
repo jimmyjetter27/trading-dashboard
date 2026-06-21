@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Market Intel</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/styles.css?v=20260604b">
+</head>
+<body data-current-page="market-intel">
+  <div class="app-shell shell-layout">
+    <aside class="side-nav" id="sideNav">
+      <div class="side-nav-head">
+        <div>
+          <p class="eyebrow">MetaTrader Monitor</p>
+          <h2>Observer</h2>
+        </div>
+        <button class="theme-button nav-toggle" id="sideNavToggle" type="button">Collapse</button>
+      </div>
+      <nav class="page-nav side-page-nav" id="pageNav">
+        <a class="theme-button page-tab" href="/live" data-page="live" data-tooltip="Live Desk"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12l9-8 9 8"></path><path d="M5 10v10h14V10"></path></svg><span class="page-tab-label">Live Desk</span></a>
+        <a class="theme-button page-tab" href="/analysis" data-page="analysis" data-tooltip="Analysis"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16"></path><path d="M7 15l3-4 3 2 4-6"></path><circle cx="7" cy="15" r="1"></circle><circle cx="10" cy="11" r="1"></circle><circle cx="13" cy="13" r="1"></circle><circle cx="17" cy="7" r="1"></circle></svg><span class="page-tab-label">Analysis</span></a>
+        <a class="theme-button page-tab active" href="/market-intel" data-page="market-intel" data-tooltip="Market Intel"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16"></path><path d="M6 15l3-3 3 2 5-6"></path><path d="M18 7h-4"></path><path d="M18 7v4"></path></svg><span class="page-tab-label">Market Intel</span></a>
+        <a class="theme-button page-tab" href="/playbook" data-page="playbook" data-tooltip="Playbook"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h10a4 4 0 0 1 4 4v10H9a4 4 0 0 0-4 4z"></path><path d="M5 5v14a4 4 0 0 1 4-4h10"></path><path d="M9 9h6"></path><path d="M9 13h6"></path></svg><span class="page-tab-label">Playbook</span></a>
+        <a class="theme-button page-tab" href="/charts" data-page="charts" data-tooltip="Charts"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16"></path><path d="M7 16V9"></path><path d="M12 14V5"></path><path d="M17 18v-8"></path><path d="M6 11h2"></path><path d="M11 8h2"></path><path d="M16 12h2"></path></svg><span class="page-tab-label">Charts</span></a>
+        <a class="theme-button page-tab" href="/xau-chart" data-page="xau-chart" data-tooltip="XAU Chart"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16"></path><path d="M8 6v12"></path><path d="M12 4v8"></path><path d="M16 9v9"></path><path d="M7 10h2"></path><path d="M11 7h2"></path><path d="M15 13h2"></path></svg><span class="page-tab-label">XAU Chart</span></a>
+        <a class="theme-button page-tab" href="/consolidation" data-page="consolidation" data-tooltip="Consolidation"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="8" width="16" height="8" rx="2"></rect><path d="M8 12h8"></path></svg><span class="page-tab-label">Consolidation</span></a>
+        <a class="theme-button page-tab" href="/calculator" data-page="calculator" data-tooltip="Calculator"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"></rect><path d="M8 7h8"></path><path d="M8 11h2"></path><path d="M12 11h2"></path><path d="M16 11h0"></path><path d="M8 15h2"></path><path d="M12 15h2"></path><path d="M16 15h0"></path></svg><span class="page-tab-label">Calculator</span></a>
+        <a class="theme-button page-tab" href="/risk" data-page="risk" data-tooltip="Risk Planner"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6l7-3z"></path><path d="M9 12l2 2 4-4"></path></svg><span class="page-tab-label">Risk Planner</span></a>
+        <a class="theme-button page-tab" href="/markets" data-page="markets" data-tooltip="Markets"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18"></path><path d="M12 3a15 15 0 0 1 0 18"></path><path d="M12 3a15 15 0 0 0 0 18"></path></svg><span class="page-tab-label">Markets</span></a>
+        <a class="theme-button page-tab" href="/security" data-page="security" data-tooltip="Security"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6l7-3z"></path><path d="M9.5 12.5l1.5 1.5 3.5-4"></path></svg><span class="page-tab-label">Security</span></a>
+        <a class="theme-button page-tab" href="/journal" data-page="journal" data-tooltip="Journal"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h9a3 3 0 0 1 3 3v13H9a3 3 0 0 0-3 3z"></path><path d="M6 4v16a3 3 0 0 1 3-3h9"></path><path d="M10 8h5"></path><path d="M10 12h5"></path></svg><span class="page-tab-label">Journal</span></a>
+        <a class="theme-button page-tab" href="/tools" data-page="tools" data-tooltip="Tools"><svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6V3"></path><path d="M12 21v-3"></path><path d="M6 12H3"></path><path d="M21 12h-3"></path><circle cx="12" cy="12" r="3"></circle><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.4 1a7 7 0 0 0-1.7-1L14 3h-4l-.8 3a7 7 0 0 0-1.7 1l-2.4-1-2 3.5L5.1 11a7 7 0 0 0 0 2L3.1 14.5l2 3.5 2.4-1a7 7 0 0 0 1.7 1l.8 3h4l.8-3a7 7 0 0 0 1.7-1l2.4 1 2-3.5-2-1.5c.1-.3.1-.7.1-1z"></path></svg><span class="page-tab-label">Tools</span></a>
+      </nav>
+    </aside>
+
+    <main class="main-shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Analysis Only</p>
+          <h1>Market Intel</h1>
+          <p class="hero-copy">Structure, liquidity, session context, and journal-aware scenario planning for the symbol you are studying. This page does not place trades.</p>
+        </div>
+        <div class="hero-meta">
+          <div class="status-pill ok" id="marketIntelStatusPill">Loading Live Read</div>
+          <div class="toolbar">
+            <button class="theme-button" id="themeToggle" type="button">Toggle Theme</button>
+          </div>
+        </div>
+      </header>
+
+      <section class="panel page-section market-intel-page" data-page-panel="market-intel">
+        <div class="panel-head">
+          <div>
+            <p class="panel-kicker">Live Context</p>
+            <h2>Scenario Engine</h2>
+          </div>
+        </div>
+
+        <div class="market-intel-topbar">
+          <div class="market-intel-controls">
+            <label>
+              <span>Symbol</span>
+              <input class="toolbar-select" id="marketIntelSymbolInput" type="text" placeholder="XAUUSD, XAUUSDm, GOLD, BTCUSD" value="XAUUSD">
+            </label>
+            <label>
+              <span>Timeframe</span>
+              <select class="toolbar-select" id="marketIntelTimeframeSelect">
+                <option value="M15">M15</option>
+                <option value="M30">M30</option>
+                <option value="H1" selected>H1</option>
+                <option value="H4">H4</option>
+                <option value="D1">D1</option>
+              </select>
+            </label>
+            <label>
+              <span>Session Focus</span>
+              <select class="toolbar-select" id="marketIntelSessionFocusSelect">
+                <option value="auto" selected>Auto</option>
+                <option value="london">London</option>
+                <option value="new-york">New York</option>
+                <option value="asia">Asia</option>
+                <option value="off-session">Off-Session</option>
+              </select>
+            </label>
+          </div>
+          <div class="market-intel-actions">
+            <button class="theme-button primary-button" id="marketIntelRefreshButton" type="button">Refresh Intel</button>
+          </div>
+        </div>
+
+        <div class="analysis-topline market-intel-headline">
+          <span id="marketIntelSymbol">XAUUSD</span>
+          <strong id="marketIntelBias">NEUTRAL</strong>
+          <span id="marketIntelConfidence">0%</span>
+          <span id="marketIntelPrice">-</span>
+        </div>
+
+        <div class="market-intel-layout">
+          <article class="panel market-intel-hero-banner">
+            <p id="marketIntelSummary" class="analysis-banner neutral">Market Intel is reading the chart and building scenario context.</p>
+            <p id="marketIntelNewsBrief" class="muted-note">Macro and news context notes will appear here.</p>
+          </article>
+
+          <section class="layout-grid market-intel-two-col">
+            <article class="panel chart-panel">
+              <div class="panel-head">
+                <div>
+                  <p class="panel-kicker">Structure Map</p>
+                  <h3>Live Chart Read</h3>
+                </div>
+              </div>
+              <canvas id="marketIntelCanvas" width="1080" height="420"></canvas>
+            </article>
+
+            <article class="panel analysis-card">
+              <div class="panel-head">
+                <div>
+                  <p class="panel-kicker">Read Summary</p>
+                  <h3>At A Glance</h3>
+                </div>
+              </div>
+              <div class="analysis-list" id="marketIntelIndicators"></div>
+              <div class="journal-totals market-intel-stat-grid">
+                <div><span>Regime</span><strong id="marketIntelRegime">-</strong></div>
+                <div><span>Session</span><strong id="marketIntelSession">-</strong></div>
+                <div><span>Prediction</span><strong id="marketIntelPredictionDirection">-</strong></div>
+                <div><span>Score</span><strong id="marketIntelPredictionScore">0</strong></div>
+              </div>
+            </article>
+          </section>
+
+          <section class="layout-grid market-intel-two-col">
+            <article class="panel analysis-card">
+              <div class="panel-head">
+                <div>
+                  <p class="panel-kicker">Session Playbook</p>
+                  <h3>Focused Models</h3>
+                </div>
+              </div>
+              <div class="analysis-list" id="marketIntelSessionModels"></div>
+            </article>
+
+            <article class="panel analysis-card">
+              <div class="panel-head">
+                <div>
+                  <p class="panel-kicker">Journal Bridge</p>
+                  <h3>Trade Behavior Check</h3>
+                </div>
+              </div>
+              <div class="analysis-list" id="marketIntelJournalBridge"></div>
+            </article>
+          </section>
+
+          <section class="layout-grid market-intel-two-col">
+            <article class="panel analysis-card">
+              <div class="panel-head">
+                <div>
+                  <p class="panel-kicker">Scenario Stack</p>
+                  <h3>Path Forecasts</h3>
+                </div>
+              </div>
+              <div class="analysis-grid compact-grid">
+                <article class="analysis-item resistance">
+                  <strong id="marketIntelPrimaryRisk">Waiting...</strong>
+                  <p id="marketIntelPrimaryRiskDetail">Primary risk path will appear here.</p>
+                </article>
+                <article class="analysis-item support">
+                  <strong id="marketIntelPrimaryOpportunity">Waiting...</strong>
+                  <p id="marketIntelPrimaryOpportunityDetail">Primary opportunity path will appear here.</p>
+                </article>
+              </div>
+              <div class="analysis-list" id="marketIntelScenarios"></div>
+            </article>
+
+            <article class="panel analysis-card">
+              <div class="panel-head">
+                <div>
+                  <p class="panel-kicker">Liquidity & Confluence</p>
+                  <h3>Important Levels</h3>
+                </div>
+              </div>
+              <div class="analysis-list" id="marketIntelLiquidity"></div>
+              <div class="analysis-list" id="marketIntelConfluences"></div>
+            </article>
+          </section>
+
+          <section class="layout-grid market-intel-two-col">
+            <article class="panel analysis-card">
+              <div class="panel-head">
+                <div>
+                  <p class="panel-kicker">What To Watch</p>
+                  <h3>Execution Conditions</h3>
+                </div>
+              </div>
+              <div class="analysis-list" id="marketIntelWatchlist"></div>
+            </article>
+
+            <article class="panel analysis-card">
+              <div class="panel-head">
+                <div>
+                  <p class="panel-kicker">Macro Notes</p>
+                  <h3>News & Event Journal</h3>
+                </div>
+              </div>
+              <div class="market-intel-macro-form">
+                <label>
+                  <span>Impact Bias</span>
+                  <select class="toolbar-select" id="marketIntelMacroImpactSelect">
+                    <option value="neutral">Neutral / watch</option>
+                    <option value="bullish">Bullish catalyst risk</option>
+                    <option value="bearish">Bearish catalyst risk</option>
+                    <option value="high-volatility">High-volatility event</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Notes</span>
+                  <textarea id="marketIntelMacroNotesInput" rows="6" placeholder="Add CPI, NFP, FOMC, geopolitical risk, or your own context notes here."></textarea>
+                </label>
+                <div class="market-intel-actions">
+                  <button class="theme-button" id="marketIntelSaveMacroNotesButton" type="button">Save Notes</button>
+                </div>
+                <p class="muted-note" id="marketIntelMacroSavedState">These notes are stored in your browser for this symbol and timeframe.</p>
+              </div>
+            </article>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/app.js?v=20260604b"></script>
+  <script src="/market_intel.js?v=20260604b"></script>
+</body>
+</html>
