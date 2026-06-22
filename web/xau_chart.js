@@ -141,6 +141,7 @@
   function timeframeLabel(value) {
     const labels = {
       M1: "1m",
+      M2: "2m",
       M3: "3m",
       M5: "5m",
       M15: "15m",

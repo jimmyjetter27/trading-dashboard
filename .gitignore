@@ -1,1 +1,8 @@
-trade_observer.sqlite3
+*.sqlite3
+*.db
+*.sqlite
+.env
+__pycache__/
+node_modules/
+dist/
+build/

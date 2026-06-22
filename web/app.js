@@ -4,6 +4,7 @@ const state = {
   activeAlarmKey: null,
   activeAlarmInterval: null,
   audioContext: null,
+  lastAnalysisDecisionKey: localStorage.getItem("trade-observer-last-analysis-decision-key"),
   previousTradeLevels: {},
   localAlerts: [],
   hiddenJournalTickets: new Set(),
@@ -77,6 +78,8 @@ const API_BASE = window.location.protocol === "file:" ? "http://127.0.0.1:8765" 
 const ALERT_TOGGLE_DEFS = [
   ["entry", "Trade Started", "New trade entry alarms."],
   ["close", "Trade Closed", "Manual or general close notifications."],
+  ["analysis_buy_confirmed", "Analysis Buy Now", "Confirmed analysis buy-now prompts."],
+  ["analysis_sell_confirmed", "Analysis Sell Now", "Confirmed analysis sell-now prompts."],
   ["liquidity_sweep_detected", "Liquidity Sweep", "Engineered liquidity sweep detection alerts."],
   ["closed_take_profit", "TP Closed", "When a trade closes at take profit."],
   ["take_profit_reached", "TP Reached", "When price reaches take profit on an open trade."],
@@ -1924,6 +1927,39 @@ function renderAnalysis(payload) {
       </article>
     `;
   }
+  const tradeAdvice = payload?.trade_advice || {};
+  const latestCandleTime = Array.isArray(payload?.candles) && payload.candles.length
+    ? String(payload.candles[payload.candles.length - 1]?.time || "")
+    : "";
+  const confirmedBias = tradeAdvice.advisable && ["buy", "sell"].includes(String(tradeAdvice.bias || "").toLowerCase())
+    ? String(tradeAdvice.bias).toLowerCase()
+    : "";
+  const analysisDecisionKey = confirmedBias
+    ? [
+      "analysis",
+      payload?.symbol || state.currentSymbol || "XAUUSD",
+      payload?.timeframe || state.analysisTimeframe || "H1",
+      confirmedBias,
+      latestCandleTime,
+    ].join("|")
+    : "";
+  if (analysisDecisionKey && analysisDecisionKey !== state.lastAnalysisDecisionKey) {
+    state.lastAnalysisDecisionKey = analysisDecisionKey;
+    localStorage.setItem("trade-observer-last-analysis-decision-key", analysisDecisionKey);
+    addLocalAlert(
+      {
+        ts: new Date().toISOString(),
+        event_type: confirmedBias === "buy" ? "analysis_buy_confirmed" : "analysis_sell_confirmed",
+        severity: confirmedBias === "buy" ? "success" : "warn",
+        message: confirmedBias === "buy"
+          ? `Buy now confirmed on ${payload?.symbol || "XAUUSD"} ${payload?.timeframe || state.analysisTimeframe || "H1"}. ${tradeAdvice.summary || ""}`.trim()
+          : `Sell now confirmed on ${payload?.symbol || "XAUUSD"} ${payload?.timeframe || state.analysisTimeframe || "H1"}. ${tradeAdvice.summary || ""}`.trim(),
+        ticket: null,
+        symbol: payload?.symbol || state.currentSymbol || "XAUUSD",
+      },
+      analysisDecisionKey,
+    );
+  }
   if (els.analysisIndicatorChecks) {
     const adx = payload?.indicator_checks?.adx || {};
     const ichimoku = payload?.indicator_checks?.ichimoku || {};
@@ -3403,6 +3439,8 @@ function alarmTitleFor(eventType) {
   const map = {
     entry: "Trade Started",
     close: "Trade Closed",
+    analysis_buy_confirmed: "Analysis Buy Now",
+    analysis_sell_confirmed: "Analysis Sell Now",
     liquidity_sweep_detected: "Liquidity Sweep Detected",
     account_switched: "Trading Account Switched",
     m5_direction_shift: "M5 Direction Shift",
@@ -3438,6 +3476,8 @@ function buildTestAlert(eventType) {
   const messages = {
     entry: "Test only: this simulates a trade entry alarm.",
     close: "Test only: this simulates a trade close alarm. 3 trades closed in this batch.",
+    analysis_buy_confirmed: "Test only: this simulates a confirmed analysis buy-now alert.",
+    analysis_sell_confirmed: "Test only: this simulates a confirmed analysis sell-now alert.",
     liquidity_sweep_detected: "Test only: this simulates a live engineered liquidity sweep alert.",
     account_switched: "Test only: this simulates a trading account switch alarm.",
     m5_direction_shift: "Test only: this simulates an M5 bullish direction shift alert.",
@@ -3958,6 +3998,8 @@ function playBrowserAlert(eventType) {
   const presets = {
     entry: [660, 880, 1040],
     close: [700, 900, 1200],
+    analysis_buy_confirmed: [988, 1244, 1568],
+    analysis_sell_confirmed: [784, 659, 523],
     liquidity_sweep_detected: [660, 990, 770],
     account_switched: [780, 980, 1180],
     m5_direction_shift: [780, 980, 1240, 1480],
@@ -3990,6 +4032,28 @@ function playBrowserAlert(eventType) {
     osc.start(now + index * 0.18);
     osc.stop(now + index * 0.18 + 0.2);
   });
+}
+
+function speakAnalysisDecision(eventType) {
+  if (!("speechSynthesis" in window) || !window.SpeechSynthesisUtterance) return;
+  const phrase = eventType === "analysis_buy_confirmed"
+    ? "Buy now"
+    : eventType === "analysis_sell_confirmed"
+      ? "Sell now"
+      : "";
+  if (!phrase) return;
+  try {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(phrase);
+    utterance.rate = 0.92;
+    utterance.pitch = 0.96;
+    utterance.volume = 1;
+    window.speechSynthesis.speak(utterance);
+  } catch {}
+}
+
+function shouldLoopAlert(eventType) {
+  return !["analysis_buy_confirmed", "analysis_sell_confirmed"].includes(String(eventType || ""));
 }
 
 function stopAlarmLoop() {
@@ -4027,9 +4091,14 @@ function triggerAlert(alert, key) {
   openAlarmModal(alert);
   stopAlarmLoop();
   playBrowserAlert(alert.event_type);
-  state.activeAlarmInterval = setInterval(() => {
-    playBrowserAlert(alert.event_type);
-  }, isNegativeAlert(alert) ? 2200 : 2800);
+  if (String(alert.event_type || "").startsWith("analysis_")) {
+    speakAnalysisDecision(alert.event_type);
+  }
+  if (shouldLoopAlert(alert.event_type)) {
+    state.activeAlarmInterval = setInterval(() => {
+      playBrowserAlert(alert.event_type);
+    }, isNegativeAlert(alert) ? 2200 : 2800);
+  }
 }
 
 function addLocalAlert(alert, key) {
