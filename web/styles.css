@@ -2005,6 +2005,10 @@ body[data-current-page="signal-lab"] .summary-grid .stat-panel {
   gap: 18px;
 }
 
+.analysis-grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .analysis-list {
   display: grid;
   gap: 12px;

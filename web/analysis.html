@@ -268,8 +268,8 @@
     <section class="panel page-section analysis-page hidden-page" data-page-panel="analysis">
       <div class="panel-head">
         <div>
-          <p class="panel-kicker">XAUUSD Analysis</p>
-          <h2>Confluence Map & Candlestick Structure</h2>
+          <p class="panel-kicker">Bot Logic Mirror</p>
+          <h2>Execution Assistant</h2>
         </div>
         <button class="theme-button" id="analysisFullscreenButton" type="button">Full Screen</button>
       </div>
@@ -278,8 +278,9 @@
         <div><span>Timeframe</span><strong id="analysisTimeframe">H1</strong></div>
         <div><span>Bias</span><strong id="analysisBias">Neutral</strong></div>
         <div><span>Current Price</span><strong id="analysisPrice">-</strong></div>
+        <div><span>Session</span><strong id="analysisSession">-</strong></div>
         <label class="analysis-control">
-          <span>Chart Timeframe</span>
+          <span>View Timeframe</span>
           <select id="analysisTimeframeSelect">
             <option value="M1">M1</option>
             <option value="M5">M5</option>
@@ -290,62 +291,97 @@
             <option value="D1">D1</option>
           </select>
         </label>
-        </div>
-        <div class="analysis-banner neutral" id="analysisPrediction">Prediction will appear after candle data loads.</div>
-        <div class="analysis-grid">
-          <article class="panel analysis-card">
-            <div class="panel-head">
-              <div>
-                <p class="panel-kicker">Trade Guidance</p>
-                <h2>Indicator Decision Read</h2>
-              </div>
+      </div>
+      <div class="analysis-banner neutral" id="analysisPrediction">Execution guidance will appear after MT5 candle data loads.</div>
+      <div class="analysis-grid analysis-grid-3">
+        <article class="panel analysis-card">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Prompt</p>
+              <h2>Action Prompt</h2>
             </div>
-            <div id="analysisTradeRead" class="analysis-list">
-              <div class="empty-state">Indicator guidance will appear after analysis data loads.</div>
-            </div>
-          </article>
-          <article class="panel analysis-card">
-            <div class="panel-head">
-              <div>
-                <p class="panel-kicker">Indicator Checks</p>
-                <h2>Trend Strength, Momentum & Bias</h2>
-              </div>
-            </div>
-            <div id="analysisIndicatorChecks" class="analysis-list">
-              <div class="empty-state">ADX, Ichimoku, MACD, and RSI checks will appear here after MT5 candles load.</div>
-            </div>
-          </article>
-        </div>
-        <div class="analysis-fullscreen-stage" id="analysisStage">
-          <div class="analysis-session-strip">
-            <span>Open Markets</span>
-            <strong id="analysisOpenMarkets">No major market is currently open</strong>
           </div>
-          <div class="analysis-chart-wrap">
-            <canvas id="analysisCanvas" width="1280" height="560"></canvas>
+          <div id="analysisTradeRead" class="analysis-list">
+            <div class="empty-state">The bot-style action prompt will appear here after analysis data loads.</div>
           </div>
-        </div>
-        <div class="analysis-grid">
-          <article class="panel analysis-card">
-            <div class="panel-head">
-              <div>
-                <p class="panel-kicker">Zones</p>
-                <h2>Support & Resistance</h2>
-              </div>
+        </article>
+        <article class="panel analysis-card">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Trading Gate</p>
+              <h2>Can The Bot Act?</h2>
             </div>
-            <div id="analysisZones" class="analysis-list"></div>
-          </article>
-          <article class="panel analysis-card">
-            <div class="panel-head">
-              <div>
-                <p class="panel-kicker">Confluences</p>
-                <h2>Market Read</h2>
-              </div>
+          </div>
+          <div id="analysisGateChecks" class="analysis-list">
+            <div class="empty-state">Session, spread, ATR, and daily guardrails will appear here.</div>
+          </div>
+        </article>
+        <article class="panel analysis-card">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Risk Engine</p>
+              <h2>Lot Size & Exposure</h2>
             </div>
-            <div id="analysisConfluences" class="analysis-list"></div>
-          </article>
+          </div>
+          <div id="analysisRiskPlan" class="analysis-list">
+            <div class="empty-state">Risk-based sizing will appear here after the market snapshot loads.</div>
+          </div>
+        </article>
+      </div>
+      <div class="analysis-fullscreen-stage" id="analysisStage">
+        <div class="analysis-session-strip">
+          <span>Open Markets</span>
+          <strong id="analysisOpenMarkets">No major market is currently open</strong>
         </div>
-      </section>
+        <div class="analysis-chart-wrap">
+          <canvas id="analysisCanvas" width="1280" height="560"></canvas>
+        </div>
+      </div>
+      <div class="analysis-grid">
+        <article class="panel analysis-card">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Bot Context</p>
+              <h2>Market Snapshot</h2>
+            </div>
+          </div>
+          <div id="analysisBotContext" class="analysis-list">
+            <div class="empty-state">Bias model, ATR, spread, and session context will appear here.</div>
+          </div>
+        </article>
+        <article class="panel analysis-card">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Management</p>
+              <h2>Break-Even & Trailing Prompts</h2>
+            </div>
+          </div>
+          <div id="analysisManagementPlan" class="analysis-list">
+            <div class="empty-state">Live trade management prompts will appear here when a matching position is open.</div>
+          </div>
+        </article>
+      </div>
+      <div class="analysis-grid">
+        <article class="panel analysis-card">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Structure</p>
+              <h2>Liquidity, FVGs & Order Blocks</h2>
+            </div>
+          </div>
+          <div id="analysisZones" class="analysis-list"></div>
+        </article>
+        <article class="panel analysis-card">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Engine Notes</p>
+              <h2>Bias, Plan & Daily State</h2>
+            </div>
+          </div>
+          <div id="analysisConfluences" class="analysis-list"></div>
+        </article>
+      </div>
+    </section>
 
     <section class="panel page-section" data-page-panel="markets">
       <div class="panel-head">

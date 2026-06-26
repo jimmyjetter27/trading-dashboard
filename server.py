@@ -3869,55 +3869,28 @@ class MT5Monitor:
 
     def market_analysis(self, symbol: str = "XAUUSD", timeframe: str = "H1") -> dict[str, Any]:
         def average(values: list[float]) -> float:
-            return sum(values) / max(len(values), 1) if values else 0.0
+            return sum(values) / len(values) if values else 0.0
 
         def ema(values: list[float], period: int) -> float:
             if not values:
                 return 0.0
-            period = max(1, period)
-            alpha = 2 / (period + 1)
+            alpha = 2.0 / (max(period, 1) + 1.0)
             result = values[0]
             for value in values[1:]:
-                result = alpha * value + (1 - alpha) * result
+                result = alpha * value + (1.0 - alpha) * result
             return result
 
-        def rsi(values: list[float], period: int = 14) -> float:
-            if len(values) < period + 1:
-                return 50.0
-            gains: list[float] = []
-            losses: list[float] = []
-            for index in range(1, len(values)):
-                delta = values[index] - values[index - 1]
-                gains.append(max(delta, 0.0))
-                losses.append(max(-delta, 0.0))
-            avg_gain = sum(gains[-period:]) / period
-            avg_loss = sum(losses[-period:]) / period
-            if avg_loss == 0:
-                return 100.0 if avg_gain > 0 else 50.0
-            rs = avg_gain / avg_loss
-            return 100 - (100 / (1 + rs))
-
-        def macd_from(values: list[float], fast_period: int = 12, slow_period: int = 26, signal_period: int = 9) -> dict[str, float]:
-            if len(values) < slow_period + signal_period:
-                return {"macd": 0.0, "signal": 0.0, "histogram": 0.0}
-
-            fast_alpha = 2 / (fast_period + 1)
-            slow_alpha = 2 / (slow_period + 1)
-            fast_ema = values[0]
-            slow_ema = values[0]
-            macd_line_series: list[float] = []
-            for value in values:
-                fast_ema = fast_alpha * value + (1 - fast_alpha) * fast_ema
-                slow_ema = slow_alpha * value + (1 - slow_alpha) * slow_ema
-                macd_line_series.append(fast_ema - slow_ema)
-
-            signal_alpha = 2 / (signal_period + 1)
-            signal_line = macd_line_series[0]
-            for value in macd_line_series[1:]:
-                signal_line = signal_alpha * value + (1 - signal_alpha) * signal_line
-            macd_line = macd_line_series[-1]
-            histogram = macd_line - signal_line
-            return {"macd": macd_line, "signal": signal_line, "histogram": histogram}
+        def atr_from_candles(candles_input: list[dict[str, Any]], period: int = 14) -> float:
+            if len(candles_input) < period + 1:
+                return 0.0
+            ranges: list[float] = []
+            for index in range(1, len(candles_input)):
+                current = candles_input[index]
+                previous_close = safe_float(candles_input[index - 1]["close"])
+                high = safe_float(current["high"])
+                low = safe_float(current["low"])
+                ranges.append(max(high - low, abs(high - previous_close), abs(low - previous_close)))
+            return average(ranges[-period:])
 
         def adx_from(candles_input: list[dict[str, Any]], period: int = 14) -> dict[str, float]:
             if len(candles_input) < period + 2:
@@ -3938,84 +3911,153 @@ class MT5Monitor:
                 down_move = prev_low - low
                 plus_dm_values.append(up_move if up_move > down_move and up_move > 0 else 0.0)
                 minus_dm_values.append(down_move if down_move > up_move and down_move > 0 else 0.0)
-                true_ranges.append(
-                    max(
-                        high - low,
-                        abs(high - prev_close),
-                        abs(low - prev_close),
-                    )
-                )
-
-            if len(true_ranges) < period:
-                return {"adx": 0.0, "plus_di": 0.0, "minus_di": 0.0}
+                true_ranges.append(max(high - low, abs(high - prev_close), abs(low - prev_close)))
 
             tr_smoothed = average(true_ranges[:period]) * period
             plus_smoothed = average(plus_dm_values[:period]) * period
             minus_smoothed = average(minus_dm_values[:period]) * period
             dx_values: list[float] = []
-
             for index in range(period, len(true_ranges)):
                 tr_smoothed = tr_smoothed - (tr_smoothed / period) + true_ranges[index]
                 plus_smoothed = plus_smoothed - (plus_smoothed / period) + plus_dm_values[index]
                 minus_smoothed = minus_smoothed - (minus_smoothed / period) + minus_dm_values[index]
-                plus_di = 100 * (plus_smoothed / tr_smoothed) if tr_smoothed else 0.0
-                minus_di = 100 * (minus_smoothed / tr_smoothed) if tr_smoothed else 0.0
+                plus_di = 100.0 * (plus_smoothed / tr_smoothed) if tr_smoothed else 0.0
+                minus_di = 100.0 * (minus_smoothed / tr_smoothed) if tr_smoothed else 0.0
                 denominator = plus_di + minus_di
-                dx_values.append((100 * abs(plus_di - minus_di) / denominator) if denominator else 0.0)
+                dx_values.append((100.0 * abs(plus_di - minus_di) / denominator) if denominator else 0.0)
 
-            if not dx_values:
-                plus_di = 100 * (plus_smoothed / tr_smoothed) if tr_smoothed else 0.0
-                minus_di = 100 * (minus_smoothed / tr_smoothed) if tr_smoothed else 0.0
-                return {"adx": 0.0, "plus_di": plus_di, "minus_di": minus_di}
+            adx_value = average(dx_values[-period:]) if dx_values else 0.0
+            plus_di = 100.0 * (plus_smoothed / tr_smoothed) if tr_smoothed else 0.0
+            minus_di = 100.0 * (minus_smoothed / tr_smoothed) if tr_smoothed else 0.0
+            return {"adx": adx_value, "plus_di": plus_di, "minus_di": minus_di}
 
-            adx = average(dx_values[:period]) if len(dx_values) >= period else average(dx_values)
-            for value in dx_values[period:]:
-                adx = ((adx * (period - 1)) + value) / period
+        def normalize_volume_down(volume: float, min_volume: float, max_volume: float, step: float) -> float:
+            step = step or min_volume or 0.01
+            min_volume = min_volume or 0.01
+            max_volume = max_volume or 100.0
+            if volume < min_volume:
+                return 0.0
+            volume = min(volume, max_volume)
+            steps = math.floor((volume - min_volume) / step + 1e-7)
+            normalized = min_volume + steps * step
+            digits = max(0, len(f"{step:.8f}".rstrip("0").split(".")[1]) if "." in f"{step:.8f}".rstrip("0") else 0)
+            return round(max(min_volume, min(normalized, max_volume)), digits)
 
-            plus_di = 100 * (plus_smoothed / tr_smoothed) if tr_smoothed else 0.0
-            minus_di = 100 * (minus_smoothed / tr_smoothed) if tr_smoothed else 0.0
-            return {"adx": adx, "plus_di": plus_di, "minus_di": minus_di}
+        def classify_session(hour: int) -> str:
+            if 0 <= hour <= 6:
+                return "Asian"
+            if 7 <= hour <= 11:
+                return "London"
+            if 12 <= hour <= 17:
+                return "New York"
+            return "Off Hours"
 
-        def ichimoku_from(candles_input: list[dict[str, Any]]) -> dict[str, float | str]:
-            if len(candles_input) < 52:
-                return {
-                    "tenkan": 0.0,
-                    "kijun": 0.0,
-                    "senkou_a": 0.0,
-                    "senkou_b": 0.0,
-                    "cloud_position": "inside",
-                    "conversion_vs_base": "flat",
-                }
+        def is_in_range(hour: int, start_hour: int, end_hour: int) -> bool:
+            return start_hour <= hour <= end_hour if start_hour <= end_hour else hour >= start_hour or hour <= end_hour
 
-            highs_local = [safe_float(item["high"]) for item in candles_input]
-            lows_local = [safe_float(item["low"]) for item in candles_input]
-            close_local = safe_float(candles_input[-1]["close"])
-            tenkan = (max(highs_local[-9:]) + min(lows_local[-9:])) / 2
-            kijun = (max(highs_local[-26:]) + min(lows_local[-26:])) / 2
-            senkou_a = (tenkan + kijun) / 2
-            senkou_b = (max(highs_local[-52:]) + min(lows_local[-52:])) / 2
-            cloud_top = max(senkou_a, senkou_b)
-            cloud_bottom = min(senkou_a, senkou_b)
-            if close_local > cloud_top:
-                cloud_position = "above"
-            elif close_local < cloud_bottom:
-                cloud_position = "below"
-            else:
-                cloud_position = "inside"
-            if tenkan > kijun:
-                conversion_vs_base = "bullish"
-            elif tenkan < kijun:
-                conversion_vs_base = "bearish"
-            else:
-                conversion_vs_base = "flat"
-            return {
-                "tenkan": tenkan,
-                "kijun": kijun,
-                "senkou_a": senkou_a,
-                "senkou_b": senkou_b,
-                "cloud_position": cloud_position,
-                "conversion_vs_base": conversion_vs_base,
-            }
+        def build_gate(label: str, passed: bool, detail: str, blocking: bool = True) -> dict[str, Any]:
+            tone = "bullish" if passed else ("bearish" if blocking else "neutral")
+            return {"label": label, "passed": passed, "detail": detail, "blocking": blocking, "tone": tone}
+
+        def recent_liquidity_levels(candles_input: list[dict[str, Any]], lookback: int, tolerance: float) -> list[dict[str, Any]]:
+            levels: list[dict[str, Any]] = []
+            start_index = 2
+            end_index = max(2, len(candles_input) - 2)
+            for index in range(start_index, end_index):
+                current = candles_input[index]
+                high = safe_float(current["high"])
+                low = safe_float(current["low"])
+                if (
+                    high > safe_float(candles_input[index - 1]["high"])
+                    and high > safe_float(candles_input[index - 2]["high"])
+                    and high > safe_float(candles_input[index + 1]["high"])
+                    and high > safe_float(candles_input[index + 2]["high"])
+                ):
+                    levels.append({
+                        "price": round(high, 2),
+                        "kind": "high",
+                        "time": current["time"],
+                        "strength": sum(
+                            1
+                            for item in candles_input[max(0, index - 25): index + 25]
+                            if abs(safe_float(item["high"]) - high) <= tolerance or abs(safe_float(item["low"]) - high) <= tolerance
+                        ),
+                    })
+                if (
+                    low < safe_float(candles_input[index - 1]["low"])
+                    and low < safe_float(candles_input[index - 2]["low"])
+                    and low < safe_float(candles_input[index + 1]["low"])
+                    and low < safe_float(candles_input[index + 2]["low"])
+                ):
+                    levels.append({
+                        "price": round(low, 2),
+                        "kind": "low",
+                        "time": current["time"],
+                        "strength": sum(
+                            1
+                            for item in candles_input[max(0, index - 25): index + 25]
+                            if abs(safe_float(item["high"]) - low) <= tolerance or abs(safe_float(item["low"]) - low) <= tolerance
+                        ),
+                    })
+            levels.sort(key=lambda item: item["time"], reverse=True)
+            return levels[:6]
+
+        def recent_fvgs(candles_input: list[dict[str, Any]], atr_value: float) -> list[dict[str, Any]]:
+            minimum_gap = atr_value * 0.5
+            fvgs: list[dict[str, Any]] = []
+            for index in range(2, len(candles_input)):
+                candle_1 = candles_input[index - 2]
+                candle_3 = candles_input[index]
+                bullish_gap = safe_float(candle_3["low"]) - safe_float(candle_1["high"])
+                bearish_gap = safe_float(candle_1["low"]) - safe_float(candle_3["high"])
+                if bullish_gap >= minimum_gap:
+                    fvgs.append({
+                        "kind": "bullish",
+                        "low": round(safe_float(candle_1["high"]), 2),
+                        "high": round(safe_float(candle_3["low"]), 2),
+                        "size": round(bullish_gap, 2),
+                        "time": candle_3["time"],
+                    })
+                if bearish_gap >= minimum_gap:
+                    fvgs.append({
+                        "kind": "bearish",
+                        "low": round(safe_float(candle_3["high"]), 2),
+                        "high": round(safe_float(candle_1["low"]), 2),
+                        "size": round(bearish_gap, 2),
+                        "time": candle_3["time"],
+                    })
+            fvgs.sort(key=lambda item: item["time"], reverse=True)
+            return fvgs[:5]
+
+        def recent_order_blocks(candles_input: list[dict[str, Any]], atr_value: float) -> list[dict[str, Any]]:
+            order_blocks: list[dict[str, Any]] = []
+            threshold = atr_value * 0.8
+            for index in range(1, len(candles_input) - 1):
+                current = candles_input[index]
+                next_candle = candles_input[index + 1]
+                body = abs(safe_float(next_candle["close"]) - safe_float(next_candle["open"]))
+                if body < threshold:
+                    continue
+                current_open = safe_float(current["open"])
+                current_close = safe_float(current["close"])
+                next_open = safe_float(next_candle["open"])
+                next_close = safe_float(next_candle["close"])
+                if current_close < current_open and next_close > next_open:
+                    order_blocks.append({
+                        "kind": "bullish",
+                        "low": round(min(current_open, current_close), 2),
+                        "high": round(max(current_open, current_close), 2),
+                        "time": current["time"],
+                    })
+                elif current_close > current_open and next_close < next_open:
+                    order_blocks.append({
+                        "kind": "bearish",
+                        "low": round(min(current_open, current_close), 2),
+                        "high": round(max(current_open, current_close), 2),
+                        "time": current["time"],
+                    })
+            order_blocks.sort(key=lambda item: item["time"], reverse=True)
+            return order_blocks[:5]
 
         timeframe_key = (timeframe or "H1").strip().upper()
         timeframe_map = {
@@ -4028,33 +4070,38 @@ class MT5Monitor:
             "D1": ("TIMEFRAME_D1", "D1"),
         }
         timeframe_attr, timeframe_label = timeframe_map.get(timeframe_key, ("TIMEFRAME_H1", "H1"))
+        empty_payload = {
+            "connected": False,
+            "connection_error": self.connection_error or "Not connected.",
+            "symbol": symbol,
+            "timeframe": timeframe_label,
+            "candles": [],
+            "zones": [],
+            "confluences": [],
+            "bias": "neutral",
+            "current_price": 0.0,
+            "prediction": {"direction": "neutral", "summary": self.connection_error or "Not connected.", "score": 0},
+            "trade_advice": {"advisable": False, "bias": "wait", "tone": "neutral", "summary": self.connection_error or "Not connected."},
+            "gate_checks": [],
+            "day_state": {},
+            "market_snapshot": {},
+            "bias_model": {},
+            "execution_plan": {},
+            "risk_plan": {},
+            "management_plan": {},
+            "structure_context": {},
+            "active_position": None,
+            "prompt_state": {"state": "wait", "tone": "neutral", "summary": self.connection_error or "Not connected."},
+            "market_sessions": market_sessions_snapshot(),
+        }
         if not self._initialize():
-            return {
-                "connected": False,
-                "connection_error": self.connection_error,
-                "symbol": symbol,
-                "timeframe": timeframe_label,
-                "candles": [],
-                "zones": [],
-                "confluences": [],
-                "bias": "neutral",
-                "prediction": {"direction": "neutral", "summary": self.connection_error or "Not connected.", "score": 0},
-                "market_sessions": market_sessions_snapshot(),
-            }
-
+            return empty_payload
         if mt5 is None:
-            return {
-                "connected": False,
-                "connection_error": "MetaTrader5 package is not installed.",
-                "symbol": symbol,
-                "timeframe": timeframe_label,
-                "candles": [],
-                "zones": [],
-                "confluences": [],
-                "bias": "neutral",
-                "prediction": {"direction": "neutral", "summary": "MetaTrader5 package is not installed.", "score": 0},
-                "market_sessions": market_sessions_snapshot(),
-            }
+            empty_payload["connection_error"] = "MetaTrader5 package is not installed."
+            empty_payload["prediction"]["summary"] = empty_payload["connection_error"]
+            empty_payload["trade_advice"]["summary"] = empty_payload["connection_error"]
+            empty_payload["prompt_state"]["summary"] = empty_payload["connection_error"]
+            return empty_payload
 
         target_symbol = symbol.strip() or self.primary_symbol or "XAUUSD"
         symbol_info = mt5.symbol_info(target_symbol)
@@ -4067,18 +4114,13 @@ class MT5Monitor:
                     target_symbol = candidate
                     break
         if symbol_info is None:
-            return {
-                "connected": self.connected,
-                "connection_error": f"Symbol {target_symbol} is not available in this terminal.",
-                "symbol": target_symbol,
-                "timeframe": timeframe_label,
-                "candles": [],
-                "zones": [],
-                "confluences": [],
-                "bias": "neutral",
-                "prediction": {"direction": "neutral", "summary": f"Symbol {target_symbol} is not available in this terminal.", "score": 0},
-                "market_sessions": market_sessions_snapshot(),
-            }
+            empty_payload["connected"] = self.connected
+            empty_payload["symbol"] = target_symbol
+            empty_payload["connection_error"] = f"Symbol {target_symbol} is not available in this terminal."
+            empty_payload["prediction"]["summary"] = empty_payload["connection_error"]
+            empty_payload["trade_advice"]["summary"] = empty_payload["connection_error"]
+            empty_payload["prompt_state"]["summary"] = empty_payload["connection_error"]
+            return empty_payload
 
         if not getattr(symbol_info, "visible", True):
             mt5.symbol_select(target_symbol, True)
@@ -4087,21 +4129,19 @@ class MT5Monitor:
             target_symbol,
             getattr(mt5, timeframe_attr, getattr(mt5, "TIMEFRAME_H1", 16385)),
             0,
-            160,
+            220,
         )
-        if rates is None or len(rates) < 20:
-            return {
-                "connected": self.connected,
-                "connection_error": f"Could not load candle history for {target_symbol}.",
-                "symbol": target_symbol,
-                "timeframe": timeframe_label,
-                "candles": [],
-                "zones": [],
-                "confluences": [],
-                "bias": "neutral",
-                "prediction": {"direction": "neutral", "summary": f"Could not load candle history for {target_symbol}.", "score": 0},
-                "market_sessions": market_sessions_snapshot(),
-            }
+        m5_rates = mt5.copy_rates_from_pos(target_symbol, getattr(mt5, "TIMEFRAME_M5", 5), 0, 220)
+        h4_rates = mt5.copy_rates_from_pos(target_symbol, getattr(mt5, "TIMEFRAME_H4", 16388), 0, 260)
+        h1_rates = mt5.copy_rates_from_pos(target_symbol, getattr(mt5, "TIMEFRAME_H1", 16385), 0, 120)
+        if rates is None or len(rates) < 60 or m5_rates is None or len(m5_rates) < 80 or h4_rates is None or len(h4_rates) < 210:
+            empty_payload["connected"] = self.connected
+            empty_payload["symbol"] = target_symbol
+            empty_payload["connection_error"] = f"Could not load bot-style analysis candles for {target_symbol}."
+            empty_payload["prediction"]["summary"] = empty_payload["connection_error"]
+            empty_payload["trade_advice"]["summary"] = empty_payload["connection_error"]
+            empty_payload["prompt_state"]["summary"] = empty_payload["connection_error"]
+            return empty_payload
 
         candles = [
             {
@@ -4114,211 +4154,299 @@ class MT5Monitor:
             }
             for rate in rates
         ]
+        m5_candles = [
+            {
+                "time": datetime.fromtimestamp(int(rate["time"]), UTC).isoformat(),
+                "open": safe_float(rate["open"]),
+                "high": safe_float(rate["high"]),
+                "low": safe_float(rate["low"]),
+                "close": safe_float(rate["close"]),
+                "tick_volume": int(rate["tick_volume"]),
+            }
+            for rate in m5_rates
+        ]
+        h4_closes = [safe_float(rate["close"]) for rate in h4_rates]
+        h1_closes = [safe_float(rate["close"]) for rate in h1_rates] if h1_rates is not None else []
 
-        recent = candles[-80:]
-        highs = [item["high"] for item in recent]
-        lows = [item["low"] for item in recent]
-        closes = [item["close"] for item in recent]
-        current_price = closes[-1]
-        range_high = max(highs)
-        range_low = min(lows)
-        swing_high = max(item["high"] for item in candles[-24:])
-        swing_low = min(item["low"] for item in candles[-24:])
-        midline = (range_high + range_low) / 2 if highs and lows else current_price
-        avg_close = sum(closes[-20:]) / max(len(closes[-20:]), 1)
-        avg_long = sum(closes[-50:]) / max(len(closes[-50:]), 1)
-        avg_range = sum(item["high"] - item["low"] for item in candles[-20:]) / max(len(candles[-20:]), 1)
-        bias = "bullish" if avg_close > avg_long else "bearish" if avg_close < avg_long else "neutral"
-        ema20 = ema(closes[-40:], 20)
-        ema50 = ema(closes[-80:], 50)
-        rsi14 = rsi(closes[-40:], 14)
-        macd_data = macd_from(closes[-80:], 12, 26, 9)
-        adx_data = adx_from(candles, 14)
-        ichimoku_data = ichimoku_from(candles)
-        macd_value = safe_float(macd_data.get("macd"))
-        macd_signal = safe_float(macd_data.get("signal"))
-        macd_histogram = safe_float(macd_data.get("histogram"))
-        adx_value = safe_float(adx_data.get("adx"))
-        plus_di = safe_float(adx_data.get("plus_di"))
-        minus_di = safe_float(adx_data.get("minus_di"))
-        cloud_position = str(ichimoku_data.get("cloud_position", "inside"))
-        conversion_vs_base = str(ichimoku_data.get("conversion_vs_base", "flat"))
+        point = safe_float(getattr(symbol_info, "point", 0.01), 0.01) or 0.01
+        digits = int(getattr(symbol_info, "digits", 2))
+        bid = safe_float(getattr(symbol_info, "bid", 0.0))
+        ask = safe_float(getattr(symbol_info, "ask", 0.0))
+        current_price = bid or ask or safe_float(candles[-1]["close"])
+        spread_price = max(ask - bid, 0.0) if ask and bid else 0.0
+        spread_points = spread_price / point if point else 0.0
+        atr_value = atr_from_candles(m5_candles, 14)
+        atr_points = atr_value / point if point else 0.0
 
-        trend_slope = closes[-1] - closes[-12] if len(closes) >= 12 else 0.0
-        fib_anchor_high = max(item["high"] for item in recent[-40:])
-        fib_anchor_low = min(item["low"] for item in recent[-40:])
-        fib_range = max(fib_anchor_high - fib_anchor_low, 0.01)
+        h4_ema200 = ema(h4_closes[-220:], 200)
+        h1_ema34 = ema(h1_closes[-60:], 34) if h1_closes else 0.0
+        bias = "bullish" if current_price > h4_ema200 else "bearish" if current_price < h4_ema200 else "neutral"
+        side = "buy" if bias == "bullish" else "sell" if bias == "bearish" else "wait"
+
+        now_utc = datetime.now(UTC)
+        current_hour = now_utc.hour
+        session_name = classify_session(current_hour)
+        in_asian = is_in_range(current_hour, 0, 6)
+        in_london = is_in_range(current_hour, 7, 11)
+        in_new_york = is_in_range(current_hour, 13, 17)
+        session_allowed = in_asian or in_london or in_new_york
+        kill_zone_active = is_in_range(current_hour, 8, 9) or is_in_range(current_hour, 15, 16)
+
+        account_info = mt5.account_info()
+        balance = safe_float(getattr(account_info, "balance", 0.0)) if account_info else 0.0
+        equity = safe_float(getattr(account_info, "equity", balance)) if account_info else balance
+        free_margin = safe_float(getattr(account_info, "margin_free", 0.0)) if account_info else 0.0
+        positions_all = list(mt5.positions_get() or [])
+        symbol_positions = [position for position in positions_all if str(getattr(position, "symbol", "")).upper() == target_symbol.upper()]
+        open_positions_total = len(positions_all)
+
+        today_start = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+        today_deals = list(mt5.history_deals_get(today_start, now_utc) or [])
+        today_entries = [
+            deal for deal in today_deals
+            if getattr(deal, "entry", None) == getattr(mt5, "DEAL_ENTRY_IN", 0)
+        ]
+        today_exits = [
+            deal for deal in today_deals
+            if getattr(deal, "entry", None) in {getattr(mt5, "DEAL_ENTRY_OUT", 1), getattr(mt5, "DEAL_ENTRY_INOUT", 3)}
+        ]
+        realized_daily_pl = sum(
+            safe_float(getattr(deal, "profit", 0.0))
+            + safe_float(getattr(deal, "swap", 0.0))
+            + safe_float(getattr(deal, "commission", 0.0))
+            for deal in today_exits
+        )
+        day_start_balance = balance - realized_daily_pl
+        daily_pl_pct = (realized_daily_pl / day_start_balance * 100.0) if day_start_balance else 0.0
+        today_trade_count = len(today_entries)
+
+        liquidity_levels = recent_liquidity_levels(m5_candles[-120:], 50, atr_value * 0.1 if atr_value else point * 20)
+        fvgs = recent_fvgs(m5_candles[-80:], atr_value or point * 120)
+        order_blocks = recent_order_blocks(m5_candles[-80:], atr_value or point * 120)
+
+        recent_window = candles[-80:]
+        range_high = max(safe_float(item["high"]) for item in recent_window)
+        range_low = min(safe_float(item["low"]) for item in recent_window)
+        swing_high = max(safe_float(item["high"]) for item in candles[-24:])
+        swing_low = min(safe_float(item["low"]) for item in candles[-24:])
+        midline = (range_high + range_low) / 2.0
+        fib_anchor_high = max(safe_float(item["high"]) for item in recent_window[-40:])
+        fib_anchor_low = min(safe_float(item["low"]) for item in recent_window[-40:])
+        fib_range = max(fib_anchor_high - fib_anchor_low, point * 20)
         fib_382 = fib_anchor_high - fib_range * 0.382
         fib_500 = fib_anchor_high - fib_range * 0.5
         fib_618 = fib_anchor_high - fib_range * 0.618
-        above_midline = current_price >= midline
 
-        htf_bias = bias
-        higher_timeframe_rates = mt5.copy_rates_from_pos(target_symbol, getattr(mt5, "TIMEFRAME_H4", 16388), 0, 80)
-        if higher_timeframe_rates is not None and len(higher_timeframe_rates) >= 20:
-            htf_closes = [safe_float(rate["close"]) for rate in higher_timeframe_rates]
-            htf_fast = sum(htf_closes[-20:]) / max(len(htf_closes[-20:]), 1)
-            htf_slow = sum(htf_closes[-50:]) / max(len(htf_closes[-50:]), 1)
-            htf_bias = "bullish" if htf_fast > htf_slow else "bearish" if htf_fast < htf_slow else "neutral"
+        risk_percent = 1.0
+        max_daily_risk_percent = 5.0
+        max_daily_profit_percent = 8.0
+        max_margin_usage_percent = 80.0
+        max_positions = 2
+        max_daily_trades = 10
+        min_atr_points = 100.0
+        max_spread_points = 50.0
+        atr_sl_multiplier = 2.0
+        atr_tp_multiplier = 3.0
+        allow_min_lot = True
+        be_trigger_atr = 1.0
+        trail_start_atr = 1.5
+        trail_step_atr = 0.5
 
-        zones = [
-            {
-                "label": "Primary Resistance",
-                "kind": "resistance",
-                "low": round(range_high - avg_range * 0.35, 2),
-                "high": round(range_high + avg_range * 0.15, 2),
-            },
-            {
-                "label": "Intraday Pivot",
-                "kind": "pivot",
-                "low": round(midline - avg_range * 0.18, 2),
-                "high": round(midline + avg_range * 0.18, 2),
-            },
-            {
-                "label": "Fib Pocket",
-                "kind": "support" if bias != "bearish" else "pivot",
-                "low": round(min(fib_500, fib_618), 2),
-                "high": round(max(fib_500, fib_618), 2),
-            },
-            {
-                "label": "Primary Support",
-                "kind": "support",
-                "low": round(range_low - avg_range * 0.15, 2),
-                "high": round(range_low + avg_range * 0.35, 2),
-            },
-        ]
+        session_gate = build_gate("Trading session", session_allowed, f"{session_name} window {'is active' if session_allowed else 'is outside the bot trading windows 00-06, 07-11, 13-17 UTC.'}")
+        spread_gate = build_gate("Spread filter", spread_points <= max_spread_points, f"{spread_points:.1f} pts against a max of {max_spread_points:.1f} pts.")
+        atr_gate = build_gate("ATR filter", atr_points >= min_atr_points, f"{atr_points:.1f} pts against a minimum of {min_atr_points:.1f} pts.")
+        position_gate = build_gate("Open-position cap", open_positions_total < max_positions, f"{open_positions_total} open position(s) against a max of {max_positions}.")
+        trade_cap_gate = build_gate("Daily trade cap", today_trade_count < max_daily_trades, f"{today_trade_count} entry deal(s) today against a max of {max_daily_trades}.")
+        daily_loss_gate = build_gate("Daily drawdown cap", daily_pl_pct > -max_daily_risk_percent, f"Realized daily P/L is {daily_pl_pct:.2f}% versus a floor of -{max_daily_risk_percent:.2f}%.")
+        daily_profit_gate = build_gate("Daily profit cap", daily_pl_pct < max_daily_profit_percent, f"Realized daily P/L is {daily_pl_pct:.2f}% versus a cap of {max_daily_profit_percent:.2f}%.")
+        kill_zone_note = build_gate("Kill zone", kill_zone_active, f"{'Inside' if kill_zone_active else 'Outside'} the London/NY kill zone windows.", blocking=False)
+        gate_checks = [session_gate, spread_gate, atr_gate, position_gate, trade_cap_gate, daily_loss_gate, daily_profit_gate, kill_zone_note]
+        blocking_failures = [gate for gate in gate_checks if gate["blocking"] and not gate["passed"]]
+        can_trade_now = not blocking_failures and side in {"buy", "sell"}
 
-        distance_to_support = current_price - swing_low
-        distance_to_resistance = swing_high - current_price
+        session_distance_minutes = None
+        future_markers = []
+        for hour_marker in (0, 7, 13):
+            future = now_utc.replace(hour=hour_marker, minute=0, second=0, microsecond=0)
+            if future < now_utc:
+                future += timedelta(days=1)
+            future_markers.append(int((future - now_utc).total_seconds() / 60))
+        session_distance_minutes = min(future_markers) if future_markers else None
+        should_get_ready = (
+            not can_trade_now
+            and side in {"buy", "sell"}
+            and (
+                (session_distance_minutes is not None and session_distance_minutes <= 30)
+                or (session_allowed and spread_points <= max_spread_points * 1.25 and atr_points >= min_atr_points * 0.85)
+            )
+        )
+
+        entry_price = round(ask if side == "buy" else bid if side == "sell" else current_price, digits)
+        stop_loss = round(entry_price - atr_value * atr_sl_multiplier, digits) if side == "buy" else round(entry_price + atr_value * atr_sl_multiplier, digits) if side == "sell" else entry_price
+        take_profit = round(entry_price + atr_value * atr_tp_multiplier, digits) if side == "buy" else round(entry_price - atr_value * atr_tp_multiplier, digits) if side == "sell" else entry_price
+        stop_distance = abs(entry_price - stop_loss)
+        take_profit_distance = abs(take_profit - entry_price)
+        rr_ratio = take_profit_distance / stop_distance if stop_distance else 0.0
+
+        tick_size = safe_float(getattr(symbol_info, "trade_tick_size", point), point) or point
+        tick_value = safe_float(getattr(symbol_info, "trade_tick_value", 0.0))
+        if tick_value <= 0:
+            tick_value = safe_float(getattr(symbol_info, "trade_tick_value_profit", 0.0))
+        risk_amount = balance * (risk_percent / 100.0)
+        risk_per_lot = (stop_distance / tick_size) * tick_value if tick_size and tick_value and stop_distance else 0.0
+        raw_lot = (risk_amount / risk_per_lot) if risk_per_lot else 0.0
+        min_volume = safe_float(getattr(symbol_info, "volume_min", 0.01), 0.01)
+        max_volume = safe_float(getattr(symbol_info, "volume_max", 100.0), 100.0)
+        volume_step = safe_float(getattr(symbol_info, "volume_step", min_volume or 0.01), min_volume or 0.01)
+        lot_reason = "Risk-based size calculated normally."
+        if 0 < raw_lot < min_volume and allow_min_lot:
+            raw_lot = min_volume
+            lot_reason = "Risk size fell below broker minimum, so the plan uses minimum lot."
+        normalized_lot = normalize_volume_down(raw_lot, min_volume, max_volume, volume_step) if raw_lot else 0.0
+
+        margin_per_lot = 0.0
+        margin_capped_lot = normalized_lot
+        if side in {"buy", "sell"} and entry_price > 0:
+            margin_mode = getattr(mt5, "ORDER_TYPE_BUY", 0) if side == "buy" else getattr(mt5, "ORDER_TYPE_SELL", 1)
+            estimated_margin = mt5.order_calc_margin(margin_mode, target_symbol, 1.0, entry_price)
+            margin_per_lot = safe_float(estimated_margin, 0.0)
+            allowed_margin = free_margin * (max_margin_usage_percent / 100.0)
+            if margin_per_lot > 0 and allowed_margin > 0:
+                cap_lot = normalize_volume_down(allowed_margin / margin_per_lot, min_volume, max_volume, volume_step)
+                if cap_lot and (margin_capped_lot == 0.0 or cap_lot < margin_capped_lot):
+                    margin_capped_lot = cap_lot
+                    lot_reason = "Lot was capped by the bot's free-margin guardrail."
+
+        execution_plan = {
+            "side": side,
+            "entry": entry_price,
+            "stop_loss": stop_loss,
+            "take_profit": take_profit,
+            "stop_distance": stop_distance,
+            "take_profit_distance": take_profit_distance,
+            "rr_ratio": rr_ratio,
+            "atr_multiplier_sl": atr_sl_multiplier,
+            "atr_multiplier_tp": atr_tp_multiplier,
+            "reason": (
+                "The bot would buy because price is above the H4 EMA200."
+                if side == "buy"
+                else "The bot would sell because price is below the H4 EMA200."
+                if side == "sell"
+                else "Bias is neutral, so the bot would not form a directional plan yet."
+            ),
+        }
+        risk_plan = {
+            "risk_percent": risk_percent,
+            "risk_amount": risk_amount,
+            "lot_size": margin_capped_lot,
+            "raw_lot_size": raw_lot,
+            "risk_per_lot": risk_per_lot,
+            "margin_per_lot": margin_per_lot,
+            "free_margin": free_margin,
+            "min_volume": min_volume,
+            "volume_step": volume_step,
+            "note": lot_reason,
+        }
+
+        active_position = None
+        management_plan: dict[str, Any] = {
+            "has_open_position": False,
+            "summary": "No live position on this symbol, so the page is in planning mode.",
+            "tone": "neutral",
+        }
+        if symbol_positions:
+            position = symbol_positions[0]
+            position_side = "buy" if int(getattr(position, "type", 0)) == getattr(mt5, "POSITION_TYPE_BUY", 0) else "sell"
+            position_entry = safe_float(getattr(position, "price_open", 0.0))
+            position_sl = safe_float(getattr(position, "sl", 0.0))
+            position_tp = safe_float(getattr(position, "tp", 0.0))
+            be_trigger_price = position_entry + atr_value * be_trigger_atr if position_side == "buy" else position_entry - atr_value * be_trigger_atr
+            trail_activation_price = position_entry + atr_value * trail_start_atr if position_side == "buy" else position_entry - atr_value * trail_start_atr
+            trail_step_price = atr_value * trail_step_atr
+            live_price = bid if position_side == "buy" else ask if ask else current_price
+            move_distance = live_price - position_entry if position_side == "buy" else position_entry - live_price
+            break_even_due = move_distance >= atr_value * be_trigger_atr and (position_sl == 0 or (position_side == "buy" and position_sl < position_entry) or (position_side == "sell" and position_sl > position_entry))
+            trailing_due = move_distance >= atr_value * trail_start_atr
+            suggested_trail_sl = round((bid - trail_step_price) if position_side == "buy" else (ask + trail_step_price), digits) if trail_step_price else position_sl
+            management_summary = "Hold the current plan."
+            management_tone = "neutral"
+            if break_even_due:
+                management_summary = f"Move stop to breakeven now. Price has covered at least {be_trigger_atr:.1f} ATR in your favor."
+                management_tone = "bullish" if position_side == "buy" else "bearish"
+            elif trailing_due:
+                management_summary = f"Trail the stop now. Price has moved beyond the {trail_start_atr:.1f} ATR activation level."
+                management_tone = "bullish" if position_side == "buy" else "bearish"
+
+            active_position = {
+                "ticket": int(getattr(position, "ticket", 0)),
+                "side": position_side,
+                "entry": position_entry,
+                "stop_loss": position_sl,
+                "take_profit": position_tp,
+                "volume": safe_float(getattr(position, "volume", 0.0)),
+                "profit": safe_float(getattr(position, "profit", 0.0)),
+            }
+            management_plan = {
+                "has_open_position": True,
+                "side": position_side,
+                "entry": position_entry,
+                "stop_loss": position_sl,
+                "take_profit": position_tp,
+                "profit": safe_float(getattr(position, "profit", 0.0)),
+                "break_even_trigger": round(be_trigger_price, digits),
+                "trailing_trigger": round(trail_activation_price, digits),
+                "trailing_step": round(trail_step_price, digits),
+                "suggested_trailing_stop": suggested_trail_sl,
+                "break_even_due": break_even_due,
+                "trailing_due": trailing_due,
+                "summary": management_summary,
+                "tone": management_tone,
+            }
+
+        prompt_state = {"state": "wait", "tone": "neutral", "summary": "Wait for the bot gates to line up."}
+        if management_plan.get("has_open_position"):
+            if management_plan.get("break_even_due"):
+                prompt_state = {"state": "break_even", "tone": management_plan["tone"], "summary": management_plan["summary"]}
+            elif management_plan.get("trailing_due"):
+                prompt_state = {"state": "trail_stop", "tone": management_plan["tone"], "summary": management_plan["summary"]}
+            else:
+                prompt_state = {"state": "manage", "tone": "neutral", "summary": management_plan["summary"]}
+        elif can_trade_now and side == "buy":
+            prompt_state = {"state": "buy_now", "tone": "bullish", "summary": f"Buy now. All bot gates are open and price is above the H4 EMA200. Entry {entry_price:.2f}, stop {stop_loss:.2f}, take profit {take_profit:.2f}."}
+        elif can_trade_now and side == "sell":
+            prompt_state = {"state": "sell_now", "tone": "bearish", "summary": f"Sell now. All bot gates are open and price is below the H4 EMA200. Entry {entry_price:.2f}, stop {stop_loss:.2f}, take profit {take_profit:.2f}."}
+        elif should_get_ready and side in {"buy", "sell"}:
+            prompt_state = {"state": "get_ready", "tone": "neutral", "summary": f"Get ready for a possible {side.upper()}. Bias is set, but one of the gates still needs to clear."}
+        elif blocking_failures:
+            prompt_state = {"state": "blocked", "tone": "neutral", "summary": f"Stand aside for now. The first blocking condition is: {blocking_failures[0]['label']}."}
+
         market_sessions = market_sessions_snapshot()
+        zones = [
+            {"label": "Primary Resistance", "kind": "resistance", "low": round(range_high - atr_value * 0.35, 2), "high": round(range_high + atr_value * 0.15, 2)},
+            {"label": "Intraday Pivot", "kind": "pivot", "low": round(midline - atr_value * 0.18, 2), "high": round(midline + atr_value * 0.18, 2)},
+            {"label": "Fib Pocket", "kind": "pivot", "low": round(min(fib_500, fib_618), 2), "high": round(max(fib_500, fib_618), 2)},
+            {"label": "Primary Support", "kind": "support", "low": round(range_low - atr_value * 0.15, 2), "high": round(range_low + atr_value * 0.35, 2)},
+        ]
         confluences = [
-            {
-                "title": "HTF Structure",
-                "detail": f"{timeframe_label} bias is {bias}, while H4 structure is {htf_bias}.",
-                "tone": "bullish" if bias == "bullish" else "bearish" if bias == "bearish" else "neutral",
-            },
-            {
-                "title": "Supply / Demand",
-                "detail": f"Support sits near {swing_low:.2f}; resistance sits near {swing_high:.2f}.",
-                "tone": "support" if abs(distance_to_support) < abs(distance_to_resistance) else "resistance",
-            },
-            {
-                "title": "Fibonacci Confluence",
-                "detail": f"Recent swing retracement zones: 0.382 {fib_382:.2f}, 0.500 {fib_500:.2f}, 0.618 {fib_618:.2f}.",
-                "tone": "pivot",
-            },
-            {
-                "title": "Trendline / Slope Read",
-                "detail": f"Short-term slope is {trend_slope:.2f} points over 12 candles and price is {'above' if above_midline else 'below'} the midline.",
-                "tone": "bullish" if trend_slope > 0 else "bearish" if trend_slope < 0 else "neutral",
-            },
-            {
-                "title": "Session Context",
-                "detail": (
-                    f"Open markets now: {', '.join(market_sessions['open_sessions'])}."
-                    if market_sessions["open_sessions"]
-                    else "No major market is currently open."
-                ),
-                "tone": "neutral",
-            },
-            {
-                "title": "Range Compression",
-                "detail": f"Average candle range across the last 20 bars is {avg_range:.2f}.",
-                "tone": "neutral",
-            },
-            {
-                "title": "ADX Trend Strength",
-                "detail": f"ADX is {adx_value:.1f} with +DI {plus_di:.1f} and -DI {minus_di:.1f}.",
-                "tone": "bullish" if plus_di > minus_di and adx_value >= 20 else "bearish" if minus_di > plus_di and adx_value >= 20 else "neutral",
-            },
-            {
-                "title": "Ichimoku Cloud",
-                "detail": f"Price is {cloud_position} the cloud and the conversion/base relationship is {conversion_vs_base}.",
-                "tone": "bullish" if cloud_position == "above" and conversion_vs_base == "bullish" else "bearish" if cloud_position == "below" and conversion_vs_base == "bearish" else "neutral",
-            },
-            {
-                "title": "MACD Momentum",
-                "detail": f"MACD is {macd_value:.2f} versus signal {macd_signal:.2f}, histogram {macd_histogram:.2f}.",
-                "tone": "bullish" if macd_value > macd_signal and macd_histogram > 0 else "bearish" if macd_value < macd_signal and macd_histogram < 0 else "neutral",
-            },
-            {
-                "title": "RSI Pressure",
-                "detail": f"RSI 14 is {rsi14:.1f}.",
-                "tone": "bearish" if rsi14 >= 68 else "bullish" if rsi14 <= 32 else "neutral",
-            },
+            {"title": "Bias Model", "detail": f"Current price {current_price:.2f} is {'above' if bias == 'bullish' else 'below' if bias == 'bearish' else 'at'} the H4 EMA200 at {h4_ema200:.2f}.", "tone": "bullish" if bias == "bullish" else "bearish" if bias == "bearish" else "neutral"},
+            {"title": "Session & Kill Zone", "detail": f"Session is {session_name}. Trading window is {'open' if session_allowed else 'closed'} and kill zone is {'active' if kill_zone_active else 'inactive'}.", "tone": "neutral"},
+            {"title": "Spread / ATR", "detail": f"Spread is {spread_points:.1f} pts and M5 ATR is {atr_points:.1f} pts.", "tone": "neutral"},
+            {"title": "Liquidity Context", "detail": f"{len(liquidity_levels)} recent liquidity levels, {len(fvgs)} fair value gaps, and {len(order_blocks)} order blocks are in view.", "tone": "pivot"},
+            {"title": "Risk Plan", "detail": f"Suggested lot is {margin_capped_lot:.2f} with {risk_percent:.1f}% risk and ~{rr_ratio:.2f}R reward profile.", "tone": "neutral"},
         ]
 
-        score = 0
-        score += 2 if bias == "bullish" else -2 if bias == "bearish" else 0
-        score += 2 if htf_bias == "bullish" else -2 if htf_bias == "bearish" else 0
-        score += 1 if trend_slope > 0 else -1 if trend_slope < 0 else 0
-        score += 1 if above_midline else -1
-        if current_price < fib_382 and current_price > fib_618:
-            score += 1 if bias == "bullish" else -1 if bias == "bearish" else 0
-        if market_sessions["open_sessions"]:
-            score += 1 if bias == "bullish" else -1 if bias == "bearish" else 0
-        if adx_value >= 25:
-            score += 2 if plus_di > minus_di else -2 if minus_di > plus_di else 0
-        elif adx_value >= 20:
-            score += 1 if plus_di > minus_di else -1 if minus_di > plus_di else 0
-        if cloud_position == "above" and conversion_vs_base == "bullish":
-            score += 2
-        elif cloud_position == "below" and conversion_vs_base == "bearish":
-            score -= 2
-        elif cloud_position == "inside":
-            score += 0
-        if macd_value > macd_signal and macd_histogram > 0:
-            score += 1
-        elif macd_value < macd_signal and macd_histogram < 0:
-            score -= 1
-        if rsi14 <= 35 and bias == "bullish":
-            score += 1
-        elif rsi14 >= 65 and bias == "bearish":
-            score -= 1
-
-        if score >= 3:
-            prediction_direction = "bullish"
-            prediction_summary = "Price may continue higher if it keeps holding the pivot and fib pocket during active sessions."
-        elif score <= -3:
-            prediction_direction = "bearish"
-            prediction_summary = "Price may continue lower if it rejects resistance and stays under the midline during active sessions."
-        else:
-            prediction_direction = "neutral"
-            prediction_summary = "Signals are mixed; wait for confirmation at support, resistance, or a session-driven impulse."
-
-        adx_strength_label = "strong" if adx_value >= 25 else "building" if adx_value >= 20 else "weak"
-        adx_explainer = (
-            "Trend strength is healthy and directional."
-            if adx_value >= 25
-            else "Trend strength is starting to build, but it is not dominant yet."
-            if adx_value >= 20
-            else "Trend strength is weak, so chop or fake moves are more likely."
-        )
-        ichimoku_alignment = (
-            "bullish"
-            if cloud_position == "above" and conversion_vs_base == "bullish"
-            else "bearish"
-            if cloud_position == "below" and conversion_vs_base == "bearish"
-            else "mixed"
-        )
-        trade_bias = "buy" if score >= 3 else "sell" if score <= -3 else "wait"
-        advisable = (
-            score >= 4 and adx_value >= 20 and ichimoku_alignment == "bullish"
-            or score <= -4 and adx_value >= 20 and ichimoku_alignment == "bearish"
-        )
-        if advisable:
-            advice_summary = (
-                f"Bias favors {trade_bias.upper()} continuation. ADX is {adx_strength_label}, Ichimoku is aligned, and structure is supportive."
-            )
-            advice_tone = "bullish" if trade_bias == "buy" else "bearish"
-        elif trade_bias in {"buy", "sell"}:
-            advice_summary = (
-                f"Directional bias leans {trade_bias.upper()}, but confirmation is incomplete. Wait for cleaner continuation before entering."
-            )
-            advice_tone = "neutral"
-        else:
-            advice_summary = "Stand aside for now. ADX and Ichimoku are not aligned enough to justify a fresh entry."
-            advice_tone = "neutral"
+        trade_advice = {
+            "advisable": can_trade_now,
+            "bias": side,
+            "tone": prompt_state["tone"],
+            "summary": prompt_state["summary"],
+            "method_note": "This page mirrors the bot: session/spread/ATR/day checks, H4 EMA200 bias, ATR-based stop/target, risk lot sizing, and break-even/trailing prompts. It never sends trades.",
+        }
+        prediction = {
+            "direction": "bullish" if side == "buy" else "bearish" if side == "sell" else "neutral",
+            "summary": prompt_state["summary"],
+            "score": max(0, 100 - len(blocking_failures) * 20),
+        }
 
         return {
             "connected": self.connected,
@@ -4330,47 +4458,50 @@ class MT5Monitor:
             "confluences": confluences,
             "bias": bias,
             "current_price": current_price,
-            "prediction": {
-                "direction": prediction_direction,
-                "summary": prediction_summary,
-                "score": score,
+            "prediction": prediction,
+            "trade_advice": trade_advice,
+            "gate_checks": gate_checks,
+            "day_state": {
+                "session_label": session_name,
+                "day_start_balance": day_start_balance,
+                "balance": balance,
+                "equity": equity,
+                "realized_daily_pl": realized_daily_pl,
+                "daily_pl_pct": daily_pl_pct,
+                "today_trade_count": today_trade_count,
+                "open_positions_total": open_positions_total,
             },
-            "indicator_checks": {
-                "adx": {
-                    "value": adx_value,
-                    "plus_di": plus_di,
-                    "minus_di": minus_di,
-                    "strength": adx_strength_label,
-                    "trend_side": "buy" if plus_di > minus_di else "sell" if minus_di > plus_di else "neutral",
-                    "explanation": adx_explainer,
-                },
-                "ichimoku": {
-                    "tenkan": safe_float(ichimoku_data.get("tenkan")),
-                    "kijun": safe_float(ichimoku_data.get("kijun")),
-                    "senkou_a": safe_float(ichimoku_data.get("senkou_a")),
-                    "senkou_b": safe_float(ichimoku_data.get("senkou_b")),
-                    "cloud_position": cloud_position,
-                    "conversion_vs_base": conversion_vs_base,
-                    "alignment": ichimoku_alignment,
-                },
-                "macd": {
-                    "value": macd_value,
-                    "signal": macd_signal,
-                    "histogram": macd_histogram,
-                    "bias": "buy" if macd_value > macd_signal and macd_histogram > 0 else "sell" if macd_value < macd_signal and macd_histogram < 0 else "neutral",
-                },
-                "rsi": {
-                    "value": rsi14,
-                    "state": "overbought" if rsi14 >= 68 else "oversold" if rsi14 <= 32 else "balanced",
-                },
+            "market_snapshot": {
+                "bid": bid,
+                "ask": ask,
+                "spread_points": spread_points,
+                "spread_price": spread_price,
+                "atr": atr_value,
+                "atr_points": atr_points,
+                "recent_high": swing_high,
+                "recent_low": swing_low,
+                "session_name": session_name,
+                "session_allowed": session_allowed,
+                "kill_zone_active": kill_zone_active,
+                "digits": digits,
+                "point": point,
             },
-            "trade_advice": {
-                "advisable": advisable,
-                "bias": trade_bias,
-                "tone": advice_tone,
-                "summary": advice_summary,
-                "method_note": f"Read is based on EMA20/EMA50, ADX, Ichimoku, MACD, and RSI on {timeframe_label}.",
+            "bias_model": {
+                "side": side,
+                "h4_ema200": h4_ema200,
+                "h1_ema34": h1_ema34,
+                "price_vs_h4_ema200": current_price - h4_ema200,
             },
+            "execution_plan": execution_plan,
+            "risk_plan": risk_plan,
+            "management_plan": management_plan,
+            "structure_context": {
+                "liquidity_levels": liquidity_levels,
+                "fair_value_gaps": fvgs,
+                "order_blocks": order_blocks,
+            },
+            "active_position": active_position,
+            "prompt_state": prompt_state,
             "market_sessions": market_sessions,
         }
 

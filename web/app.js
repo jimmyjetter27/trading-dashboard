@@ -5,6 +5,8 @@ const state = {
   activeAlarmInterval: null,
   audioContext: null,
   lastAnalysisDecisionKey: localStorage.getItem("trade-observer-last-analysis-decision-key"),
+  lastAnalysisPromptKey: localStorage.getItem("trade-observer-last-analysis-prompt-key"),
+  analysisGetReadyModalCycle: "",
   previousTradeLevels: {},
   localAlerts: [],
   hiddenJournalTickets: new Set(),
@@ -56,7 +58,7 @@ const state = {
     dragPrice: null,
   },
   calculatorMode: localStorage.getItem("trade-observer-calculator-mode") || "profit",
-  calculatorXauPipMode: localStorage.getItem("trade-observer-calculator-xau-pip-mode") || "0.10",
+  calculatorXauPipMode: localStorage.getItem("trade-observer-calculator-xau-pip-mode") || "0.01",
   chartSymbol: localStorage.getItem("trade-observer-chart-symbol") || "xauusd",
   chartTimeframe: localStorage.getItem("trade-observer-chart-timeframe") || "M1",
   chartType: localStorage.getItem("trade-observer-chart-type") || "candlestick",
@@ -73,13 +75,31 @@ const state = {
   orlSymbols: [],
 };
 
+if (!localStorage.getItem("trade-observer-xau-pip-migrated-20260623")) {
+  if (state.calculatorXauPipMode === "0.10") {
+    state.calculatorXauPipMode = "0.01";
+    localStorage.setItem("trade-observer-calculator-xau-pip-mode", "0.01");
+  }
+  localStorage.setItem("trade-observer-xau-pip-migrated-20260623", "done");
+}
+
 const API_BASE = window.location.protocol === "file:" ? "http://127.0.0.1:8765" : "";
+
+function currentAnalysisPromptCycleKey() {
+  return [
+    document.body?.dataset?.currentPage || "dashboard",
+    state.analysisTimeframe || "H1",
+  ].join("|");
+}
 
 const ALERT_TOGGLE_DEFS = [
   ["entry", "Trade Started", "New trade entry alarms."],
   ["close", "Trade Closed", "Manual or general close notifications."],
+  ["analysis_get_ready", "Analysis Get Ready", "Heads-up prompts when the bot logic is almost ready."],
   ["analysis_buy_confirmed", "Analysis Buy Now", "Confirmed analysis buy-now prompts."],
   ["analysis_sell_confirmed", "Analysis Sell Now", "Confirmed analysis sell-now prompts."],
+  ["analysis_break_even_prompt", "Analysis Break-Even", "Prompts to move stop loss to breakeven."],
+  ["analysis_trailing_prompt", "Analysis Trail Stop", "Prompts to trail the stop on a live position."],
   ["liquidity_sweep_detected", "Liquidity Sweep", "Engineered liquidity sweep detection alerts."],
   ["closed_take_profit", "TP Closed", "When a trade closes at take profit."],
   ["take_profit_reached", "TP Reached", "When price reaches take profit on an open trade."],
@@ -388,10 +408,14 @@ const els = {
   analysisTimeframeSelect: document.querySelector("#analysisTimeframeSelect"),
   analysisBias: document.querySelector("#analysisBias"),
   analysisPrice: document.querySelector("#analysisPrice"),
+  analysisSession: document.querySelector("#analysisSession"),
   analysisPrediction: document.querySelector("#analysisPrediction"),
   analysisOpenMarkets: document.querySelector("#analysisOpenMarkets"),
   analysisTradeRead: document.querySelector("#analysisTradeRead"),
-  analysisIndicatorChecks: document.querySelector("#analysisIndicatorChecks"),
+  analysisGateChecks: document.querySelector("#analysisGateChecks"),
+  analysisRiskPlan: document.querySelector("#analysisRiskPlan"),
+  analysisBotContext: document.querySelector("#analysisBotContext"),
+  analysisManagementPlan: document.querySelector("#analysisManagementPlan"),
   analysisZones: document.querySelector("#analysisZones"),
   analysisConfluences: document.querySelector("#analysisConfluences"),
   chartsCanvas: document.querySelector("#chartsCanvas"),
@@ -710,18 +734,18 @@ function formatLotSuggestion(value) {
 
 const calculatorPresets = {
   XAUUSD: {
-    pipSize: 0.1,
+    pipSize: 0.01,
     contractSize: 100,
     quoteCurrency: "USD",
-    notes: "Typical gold CFD assumption: 1 lot = 100 ounces, pip = 0.10",
+    notes: "Gold default here matches the live desk: 1 pip = 0.01 price move.",
     minLot: 0.01,
     maxLot: 100,
   },
   GOLD: {
-    pipSize: 0.1,
+    pipSize: 0.01,
     contractSize: 100,
     quoteCurrency: "USD",
-    notes: "Typical gold CFD assumption: 1 lot = 100 ounces, pip = 0.10",
+    notes: "Gold default here matches the live desk: 1 pip = 0.01 price move.",
     minLot: 0.01,
     maxLot: 100,
   },
@@ -779,7 +803,7 @@ function getCalculatorMarketSettings() {
         symbol,
         ...preset,
         pipSize: xauPipSize,
-        notes: `Typical gold CFD assumption: 1 lot = 100 ounces, pip = ${fixed(xauPipSize, 2)} (${fixed(xauPipSize * 100, 0)} cents of price per pip).`,
+        notes: `Gold is currently using 1 pip = ${fixed(xauPipSize, 2)} price move, to match the live desk pip readout.`,
         custom: false,
       };
     }
@@ -1894,14 +1918,17 @@ function renderAnalysis(payload) {
   if (els.analysisTimeframeSelect) {
     els.analysisTimeframeSelect.value = payload?.timeframe || state.analysisTimeframe || "H1";
   }
+  if (els.analysisSession) {
+    els.analysisSession.textContent = payload?.day_state?.session_label || payload?.market_snapshot?.session_name || "-";
+  }
   els.analysisBias.textContent = payload?.bias ? payload.bias.toUpperCase() : "NEUTRAL";
   els.analysisBias.className = payload?.bias === "bullish" ? "positive" : payload?.bias === "bearish" ? "negative" : "";
   els.analysisPrice.textContent = payload?.current_price ? fixed(payload.current_price) : "-";
   if (els.analysisPrediction) {
-    const prediction = payload?.prediction || {};
+    const promptState = payload?.prompt_state || {};
     const tradeAdvice = payload?.trade_advice || {};
-    els.analysisPrediction.textContent = tradeAdvice.summary || `${(prediction.direction || "neutral").toUpperCase()}: ${prediction.summary || "Prediction will appear after candle data loads."}`;
-    els.analysisPrediction.className = `analysis-banner ${tradeAdvice.tone || prediction.direction || "neutral"}`;
+    els.analysisPrediction.textContent = promptState.summary || tradeAdvice.summary || "Execution guidance will appear after MT5 candle data loads.";
+    els.analysisPrediction.className = `analysis-banner ${promptState.tone || tradeAdvice.tone || "neutral"}`;
   }
   if (els.analysisOpenMarkets) {
     els.analysisOpenMarkets.textContent = payload?.market_sessions?.open_sessions?.length
@@ -1909,125 +1936,177 @@ function renderAnalysis(payload) {
       : "No major market is currently open";
   }
   if (els.analysisTradeRead) {
+    const promptState = payload?.prompt_state || {};
+    const executionPlan = payload?.execution_plan || {};
+    const activePosition = payload?.active_position || null;
     const tradeAdvice = payload?.trade_advice || {};
-    const bias = String(tradeAdvice.bias || "wait").toUpperCase();
-    const tone = tradeAdvice.tone || "neutral";
+    const tone = promptState.tone || tradeAdvice.tone || "neutral";
+    const actionLabelMap = {
+      buy_now: "Buy Now",
+      sell_now: "Sell Now",
+      get_ready: "Get Ready",
+      break_even: "Move To Break-Even",
+      trail_stop: "Trail Stop Now",
+      manage: "Manage Open Trade",
+      blocked: "Blocked",
+      wait: "Wait",
+    };
     els.analysisTradeRead.innerHTML = `
       <article class="analysis-item ${tone}">
-        <strong>${tradeAdvice.advisable ? "Entry looks reasonable" : "Wait for cleaner confirmation"}</strong>
-        <p>${tradeAdvice.summary || "Trade guidance will appear after candle data loads."}</p>
+        <strong>${actionLabelMap[promptState.state] || "Wait"}</strong>
+        <p>${promptState.summary || tradeAdvice.summary || "Trade guidance will appear after candle data loads."}</p>
       </article>
       <article class="analysis-item ${tone}">
-        <strong>Bias</strong>
-        <p>${bias === "WAIT" ? "No clean directional edge right now." : `Preferred side is ${bias}.`}</p>
+        <strong>${activePosition ? "Live Position" : "Planned Entry"}</strong>
+        <p>${activePosition
+          ? `${String(activePosition.side || "").toUpperCase()} | Entry ${fixed(activePosition.entry || 0)} | SL ${activePosition.stop_loss ? fixed(activePosition.stop_loss) : "Not Set"} | TP ${activePosition.take_profit ? fixed(activePosition.take_profit) : "Not Set"}`
+          : executionPlan.side && executionPlan.side !== "wait"
+            ? `${String(executionPlan.side).toUpperCase()} | Entry ${fixed(executionPlan.entry || 0)} | SL ${fixed(executionPlan.stop_loss || 0)} | TP ${fixed(executionPlan.take_profit || 0)}`
+            : "No directional execution plan is active yet."}</p>
       </article>
       <article class="analysis-item neutral">
-        <strong>What This Read Uses</strong>
-        <p>${tradeAdvice.method_note || "This read is built from the current trend and structure checks."}</p>
+        <strong>How This Assistant Thinks</strong>
+        <p>${tradeAdvice.method_note || "This page mirrors the bot logic but never places trades."}</p>
       </article>
     `;
   }
-  const tradeAdvice = payload?.trade_advice || {};
+  const promptState = payload?.prompt_state || {};
   const latestCandleTime = Array.isArray(payload?.candles) && payload.candles.length
     ? String(payload.candles[payload.candles.length - 1]?.time || "")
     : "";
-  const confirmedBias = tradeAdvice.advisable && ["buy", "sell"].includes(String(tradeAdvice.bias || "").toLowerCase())
-    ? String(tradeAdvice.bias).toLowerCase()
-    : "";
-  const analysisDecisionKey = confirmedBias
+  const promptEventMap = {
+    buy_now: "analysis_buy_confirmed",
+    sell_now: "analysis_sell_confirmed",
+    get_ready: "analysis_get_ready",
+    break_even: "analysis_break_even_prompt",
+    trail_stop: "analysis_trailing_prompt",
+  };
+  const promptEvent = promptEventMap[promptState.state] || "";
+  const analysisPromptKey = promptEvent
     ? [
       "analysis",
       payload?.symbol || state.currentSymbol || "XAUUSD",
       payload?.timeframe || state.analysisTimeframe || "H1",
-      confirmedBias,
+      promptState.state,
       latestCandleTime,
     ].join("|")
     : "";
-  if (analysisDecisionKey && analysisDecisionKey !== state.lastAnalysisDecisionKey) {
-    state.lastAnalysisDecisionKey = analysisDecisionKey;
-    localStorage.setItem("trade-observer-last-analysis-decision-key", analysisDecisionKey);
+  if (analysisPromptKey && analysisPromptKey !== state.lastAnalysisPromptKey) {
+    state.lastAnalysisPromptKey = analysisPromptKey;
+    localStorage.setItem("trade-observer-last-analysis-prompt-key", analysisPromptKey);
     addLocalAlert(
       {
         ts: new Date().toISOString(),
-        event_type: confirmedBias === "buy" ? "analysis_buy_confirmed" : "analysis_sell_confirmed",
-        severity: confirmedBias === "buy" ? "success" : "warn",
-        message: confirmedBias === "buy"
-          ? `Buy now confirmed on ${payload?.symbol || "XAUUSD"} ${payload?.timeframe || state.analysisTimeframe || "H1"}. ${tradeAdvice.summary || ""}`.trim()
-          : `Sell now confirmed on ${payload?.symbol || "XAUUSD"} ${payload?.timeframe || state.analysisTimeframe || "H1"}. ${tradeAdvice.summary || ""}`.trim(),
-        ticket: null,
+        event_type: promptEvent,
+        severity: ["analysis_sell_confirmed", "analysis_break_even_prompt", "analysis_trailing_prompt"].includes(promptEvent) ? "warn" : "success",
+        message: `${payload?.symbol || "XAUUSD"} ${payload?.timeframe || state.analysisTimeframe || "H1"}: ${promptState.summary || "Analysis prompt updated."}`,
+        ticket: payload?.active_position?.ticket || null,
         symbol: payload?.symbol || state.currentSymbol || "XAUUSD",
       },
-      analysisDecisionKey,
+      analysisPromptKey,
     );
   }
-  if (els.analysisIndicatorChecks) {
-    const adx = payload?.indicator_checks?.adx || {};
-    const ichimoku = payload?.indicator_checks?.ichimoku || {};
-    const macd = payload?.indicator_checks?.macd || {};
-    const rsi = payload?.indicator_checks?.rsi || {};
-    const adxTone = adx.trend_side === "buy" && Number(adx.value || 0) >= 20
-      ? "bullish"
-      : adx.trend_side === "sell" && Number(adx.value || 0) >= 20
-        ? "bearish"
-        : "neutral";
-    const ichimokuTone = ichimoku.alignment === "bullish"
-      ? "bullish"
-      : ichimoku.alignment === "bearish"
-        ? "bearish"
-        : "neutral";
-    const macdTone = macd.bias === "buy"
-      ? "bullish"
-      : macd.bias === "sell"
-        ? "bearish"
-        : "neutral";
-    const rsiTone = rsi.state === "oversold"
-      ? "bullish"
-      : rsi.state === "overbought"
-        ? "bearish"
-        : "neutral";
-    const adxDirectionalLead = adx.trend_side === "buy"
-      ? "buyers are stronger than sellers right now"
-      : adx.trend_side === "sell"
-        ? "sellers are stronger than buyers right now"
-        : "buyers and sellers are fairly balanced right now";
-    els.analysisIndicatorChecks.innerHTML = `
-      <article class="analysis-item ${adxTone}">
-        <strong>ADX Trend Strength</strong>
-        <p>ADX ${fixed(adx.value || 0, 1)} means trend strength is ${(adx.strength || "weak").toUpperCase()}.</p>
-        <p>+DI ${fixed(adx.plus_di || 0, 1)} vs -DI ${fixed(adx.minus_di || 0, 1)} means ${adxDirectionalLead}.</p>
-        <p>${adx.explanation || ""}</p>
+  if (els.analysisGateChecks) {
+    const gateChecks = Array.isArray(payload?.gate_checks) ? payload.gate_checks : [];
+    els.analysisGateChecks.innerHTML = gateChecks.length
+      ? gateChecks.map((gate) => `
+        <article class="analysis-item ${gate.passed ? "bullish" : gate.blocking ? "bearish" : "neutral"}">
+          <strong>${gate.label}: ${gate.passed ? "PASS" : gate.blocking ? "BLOCKED" : "WATCH"}</strong>
+          <p>${gate.detail}</p>
+        </article>
+      `).join("")
+      : `<div class="empty-state">Session, spread, ATR, and daily guardrails will appear here.</div>`;
+  }
+  if (els.analysisRiskPlan) {
+    const riskPlan = payload?.risk_plan || {};
+    const executionPlan = payload?.execution_plan || {};
+    els.analysisRiskPlan.innerHTML = `
+      <article class="analysis-item neutral">
+        <strong>Suggested Lot</strong>
+        <p>${riskPlan.lot_size ? riskPlan.lot_size.toFixed(2) : "0.00"} lots | Risk ${money(riskPlan.risk_amount || 0)}</p>
       </article>
-      <article class="analysis-item ${ichimokuTone}">
-        <strong>Ichimoku Cloud Check</strong>
-        <p>Price is ${String(ichimoku.cloud_position || "inside").toUpperCase()} the cloud.</p>
-        <p>Tenkan/Kijun: ${String(ichimoku.conversion_vs_base || "flat").toUpperCase()} | Alignment: ${String(ichimoku.alignment || "mixed").toUpperCase()}</p>
+      <article class="analysis-item neutral">
+        <strong>Plan Geometry</strong>
+        <p>Stop ${fixed(executionPlan.stop_distance || 0)} | Target ${fixed(executionPlan.take_profit_distance || 0)} | RR ${fixed(executionPlan.rr_ratio || 0, 2)}R</p>
       </article>
-      <article class="analysis-item ${macdTone}">
-        <strong>MACD Momentum</strong>
-        <p>MACD ${fixed(macd.value || 0, 2)} vs signal ${fixed(macd.signal || 0, 2)}.</p>
-        <p>Histogram ${fixed(macd.histogram || 0, 2)} means momentum is ${String(macd.bias || "neutral").toUpperCase()} right now.</p>
-      </article>
-      <article class="analysis-item ${rsiTone}">
-        <strong>RSI Pressure</strong>
-        <p>RSI 14 is ${fixed(rsi.value || 0, 1)}.</p>
-        <p>Status: ${String(rsi.state || "balanced").toUpperCase()}.</p>
+      <article class="analysis-item neutral">
+        <strong>Lot Logic</strong>
+        <p>${riskPlan.note || "Risk sizing notes will appear here."}</p>
       </article>
     `;
   }
-
-  if (!payload?.zones?.length) {
-    els.analysisZones.innerHTML = `<div class="empty-state">${payload?.connection_error || "Connect to MT5 to load support and resistance zones."}</div>`;
-  } else {
-    els.analysisZones.innerHTML = payload.zones.map((zone) => `
-      <article class="analysis-item ${zone.kind}">
-        <strong>${zone.label}</strong>
-        <p>${fixed(zone.low)} to ${fixed(zone.high)}</p>
+  if (els.analysisBotContext) {
+    const snapshot = payload?.market_snapshot || {};
+    const dayState = payload?.day_state || {};
+    const biasModel = payload?.bias_model || {};
+    els.analysisBotContext.innerHTML = `
+      <article class="analysis-item ${payload?.bias === "bullish" ? "bullish" : payload?.bias === "bearish" ? "bearish" : "neutral"}">
+        <strong>Bias Model</strong>
+        <p>Price ${fixed(payload?.current_price || 0)} vs H4 EMA200 ${fixed(biasModel.h4_ema200 || 0)}.</p>
+        <p>Directional lean: ${String(payload?.bias || "neutral").toUpperCase()}.</p>
       </article>
-    `).join("");
+      <article class="analysis-item neutral">
+        <strong>Market Snapshot</strong>
+        <p>Spread ${fixed(snapshot.spread_points || 0, 1)} pts | ATR ${fixed(snapshot.atr_points || 0, 1)} pts | Kill Zone ${snapshot.kill_zone_active ? "Active" : "Inactive"}</p>
+      </article>
+      <article class="analysis-item neutral">
+        <strong>Daily State</strong>
+        <p>Start ${money(dayState.day_start_balance || 0)} | Balance ${money(dayState.balance || 0)} | Equity ${money(dayState.equity || 0)}</p>
+        <p>Daily P/L ${money(dayState.realized_daily_pl || 0)} (${fixed(dayState.daily_pl_pct || 0, 2)}%) | Trades ${dayState.today_trade_count || 0}</p>
+      </article>
+    `;
+  }
+  if (els.analysisManagementPlan) {
+    const managementPlan = payload?.management_plan || {};
+    els.analysisManagementPlan.innerHTML = managementPlan.has_open_position
+      ? `
+        <article class="analysis-item ${managementPlan.tone || "neutral"}">
+          <strong>Current Prompt</strong>
+          <p>${managementPlan.summary || "Management guidance will appear here."}</p>
+        </article>
+        <article class="analysis-item neutral">
+          <strong>Break-Even Trigger</strong>
+          <p>${fixed(managementPlan.break_even_trigger || 0)} | Trailing Trigger ${fixed(managementPlan.trailing_trigger || 0)}</p>
+        </article>
+        <article class="analysis-item neutral">
+          <strong>Trailing Plan</strong>
+          <p>Step ${fixed(managementPlan.trailing_step || 0)} | Suggested trailing SL ${fixed(managementPlan.suggested_trailing_stop || 0)}</p>
+        </article>
+      `
+      : `<div class="empty-state">${managementPlan.summary || "No live position on this symbol, so the page is in planning mode."}</div>`;
+  }
+
+  const structureContext = payload?.structure_context || {};
+  const liquidityLevels = Array.isArray(structureContext.liquidity_levels) ? structureContext.liquidity_levels : [];
+  const fvgs = Array.isArray(structureContext.fair_value_gaps) ? structureContext.fair_value_gaps : [];
+  const orderBlocks = Array.isArray(structureContext.order_blocks) ? structureContext.order_blocks : [];
+  if (!liquidityLevels.length && !fvgs.length && !orderBlocks.length) {
+    els.analysisZones.innerHTML = `<div class="empty-state">${payload?.connection_error || "Liquidity levels, fair value gaps, and order blocks will appear here."}</div>`;
+  } else {
+    els.analysisZones.innerHTML = [
+      ...liquidityLevels.slice(0, 3).map((level) => `
+        <article class="analysis-item ${level.kind === "high" ? "resistance" : "support"}">
+          <strong>Liquidity ${level.kind === "high" ? "High" : "Low"}</strong>
+          <p>${fixed(level.price)} | Strength ${level.strength || 0}</p>
+        </article>
+      `),
+      ...fvgs.slice(0, 2).map((gap) => `
+        <article class="analysis-item ${gap.kind === "bullish" ? "bullish" : "bearish"}">
+          <strong>${gap.kind === "bullish" ? "Bullish" : "Bearish"} FVG</strong>
+          <p>${fixed(gap.low)} to ${fixed(gap.high)} | Size ${fixed(gap.size || 0)}</p>
+        </article>
+      `),
+      ...orderBlocks.slice(0, 2).map((block) => `
+        <article class="analysis-item ${block.kind === "bullish" ? "support" : "resistance"}">
+          <strong>${block.kind === "bullish" ? "Bullish" : "Bearish"} Order Block</strong>
+          <p>${fixed(block.low)} to ${fixed(block.high)}</p>
+        </article>
+      `),
+    ].join("");
   }
 
   if (!payload?.confluences?.length) {
-    els.analysisConfluences.innerHTML = `<div class="empty-state">${payload?.connection_error || "Confluence notes will appear here once the XAUUSD chart is loaded."}</div>`;
+    els.analysisConfluences.innerHTML = `<div class="empty-state">${payload?.connection_error || "Bot notes will appear here once MT5 candle data is loaded."}</div>`;
   } else {
     els.analysisConfluences.innerHTML = payload.confluences.map((item) => `
       <article class="analysis-item ${item.tone}">
@@ -2312,9 +2391,10 @@ function drawAnalysisChart(payload) {
     return;
   }
 
-    const padding = { top: 24, right: 98, bottom: 28, left: 52 };
+  const padding = { top: 24, right: 98, bottom: 28, left: 52 };
   const highs = candles.map((candle) => Number(candle.high));
   const lows = candles.map((candle) => Number(candle.low));
+  const closes = candles.map((candle) => Number(candle.close));
   const maxPrice = Math.max(...highs);
   const minPrice = Math.min(...lows);
   const spread = Math.max(maxPrice - minPrice, 0.01);
@@ -2322,42 +2402,42 @@ function drawAnalysisChart(payload) {
   const plotHeight = height - padding.top - padding.bottom;
   const candleWidth = Math.max(4, plotWidth / candles.length * 0.72);
 
-    analysisCtx.fillStyle = getComputedStyle(document.body).getPropertyValue("--panel-soft");
-    analysisCtx.fillRect(0, 0, width, height);
+  analysisCtx.fillStyle = getComputedStyle(document.body).getPropertyValue("--panel-soft");
+  analysisCtx.fillRect(0, 0, width, height);
 
-    const matchingTrades = (state.activeTrades || []).filter((trade) => {
-      const tradeSymbol = String(trade.symbol || "").trim().toUpperCase();
-      const chartSymbol = String(payload?.symbol || "").trim().toUpperCase();
-      return tradeSymbol && chartSymbol && tradeSymbol === chartSymbol;
-    });
+  const matchingTrades = (state.activeTrades || []).filter((trade) => {
+    const tradeSymbol = String(trade.symbol || "").trim().toUpperCase();
+    const chartSymbol = String(payload?.symbol || "").trim().toUpperCase();
+    return tradeSymbol && chartSymbol && tradeSymbol === chartSymbol;
+  });
 
-    (payload?.zones || []).forEach((zone) => {
-      const topY = padding.top + (maxPrice - Number(zone.high)) / spread * plotHeight;
-      const bottomY = padding.top + (maxPrice - Number(zone.low)) / spread * plotHeight;
-      const fill = zone.kind === "support"
-        ? "rgba(75, 240, 179, 0.12)"
-        : zone.kind === "resistance"
-          ? "rgba(255, 107, 122, 0.12)"
-          : "rgba(105, 211, 255, 0.10)";
-      const stroke = zone.kind === "support"
-        ? "rgba(75, 240, 179, 0.88)"
-        : zone.kind === "resistance"
-          ? "rgba(255, 107, 122, 0.88)"
-          : "rgba(105, 211, 255, 0.82)";
-      const zoneY = Math.min(topY, bottomY);
-      const zoneHeight = Math.max(8, Math.abs(bottomY - topY));
-      analysisCtx.fillStyle = fill;
-      analysisCtx.fillRect(padding.left, zoneY, plotWidth, zoneHeight);
-      analysisCtx.strokeStyle = stroke;
-      analysisCtx.setLineDash([7, 5]);
-      analysisCtx.strokeRect(padding.left, zoneY, plotWidth, zoneHeight);
-      analysisCtx.setLineDash([]);
-      analysisCtx.fillStyle = stroke;
-      analysisCtx.font = "12px Aptos";
-      analysisCtx.fillText(zone.label, padding.left + 8, zoneY + 15);
-    });
+  (payload?.zones || []).forEach((zone) => {
+    const topY = padding.top + (maxPrice - Number(zone.high)) / spread * plotHeight;
+    const bottomY = padding.top + (maxPrice - Number(zone.low)) / spread * plotHeight;
+    const fill = zone.kind === "support"
+      ? "rgba(75, 240, 179, 0.12)"
+      : zone.kind === "resistance"
+        ? "rgba(255, 107, 122, 0.12)"
+        : "rgba(105, 211, 255, 0.10)";
+    const stroke = zone.kind === "support"
+      ? "rgba(75, 240, 179, 0.88)"
+      : zone.kind === "resistance"
+        ? "rgba(255, 107, 122, 0.88)"
+        : "rgba(105, 211, 255, 0.82)";
+    const zoneY = Math.min(topY, bottomY);
+    const zoneHeight = Math.max(8, Math.abs(bottomY - topY));
+    analysisCtx.fillStyle = fill;
+    analysisCtx.fillRect(padding.left, zoneY, plotWidth, zoneHeight);
+    analysisCtx.strokeStyle = stroke;
+    analysisCtx.setLineDash([7, 5]);
+    analysisCtx.strokeRect(padding.left, zoneY, plotWidth, zoneHeight);
+    analysisCtx.setLineDash([]);
+    analysisCtx.fillStyle = stroke;
+    analysisCtx.font = "12px Aptos";
+    analysisCtx.fillText(zone.label, padding.left + 8, zoneY + 15);
+  });
 
-    candles.forEach((candle, index) => {
+  candles.forEach((candle, index) => {
     const centerX = padding.left + (index + 0.5) * (plotWidth / candles.length);
     const open = Number(candle.open);
     const close = Number(candle.close);
@@ -2382,81 +2462,86 @@ function drawAnalysisChart(payload) {
     analysisCtx.fillStyle = color;
     const bodyTop = Math.min(yOpen, yClose);
     const bodyHeight = Math.max(2, Math.abs(yClose - yOpen));
-      analysisCtx.fillRect(centerX - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
-    });
+    analysisCtx.fillRect(centerX - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
+  });
 
-    const drawTradeLevel = (price, color, label) => {
-      if (!price || Number.isNaN(Number(price))) return;
-      const y = padding.top + (maxPrice - Number(price)) / spread * plotHeight;
-      if (y < padding.top - 24 || y > height - padding.bottom + 24) return;
-      analysisCtx.strokeStyle = color;
-      analysisCtx.lineWidth = 1.6;
-      analysisCtx.setLineDash([9, 6]);
-      analysisCtx.beginPath();
-      analysisCtx.moveTo(padding.left, y);
-      analysisCtx.lineTo(width - padding.right + 8, y);
-      analysisCtx.stroke();
-      analysisCtx.setLineDash([]);
-      analysisCtx.fillStyle = color;
-      analysisCtx.fillRect(padding.left + 8, y - 12, 92, 20);
-      analysisCtx.fillStyle = "#04131c";
-      analysisCtx.font = "12px Aptos";
-      analysisCtx.fillText(label, padding.left + 14, y + 3);
-    };
-
-    matchingTrades.forEach((trade) => {
-      if (Number(trade.stop_loss) > 0) {
-        drawTradeLevel(
-          trade.stop_loss,
-          "rgba(255, 107, 122, 0.95)",
-          `SL ${fixed(trade.stop_loss)}`
-        );
-      }
-      if (Number(trade.take_profit) > 0) {
-        drawTradeLevel(
-          trade.take_profit,
-          "rgba(75, 240, 179, 0.95)",
-          `TP ${fixed(trade.take_profit)}`
-        );
-      }
-    });
-
-    analysisCtx.fillStyle = getComputedStyle(document.body).getPropertyValue("--muted");
-    analysisCtx.font = "13px Cascadia Mono";
-    analysisCtx.fillText(fixed(maxPrice), 10, padding.top + 6);
-    analysisCtx.fillText(fixed(minPrice), 10, height - padding.bottom + 4);
-    analysisCtx.fillText(`${payload.symbol} ${payload.timeframe}`, padding.left, 18);
-
-    const rightScaleValues = [maxPrice, (maxPrice + minPrice) / 2, minPrice, Number(payload.current_price || closes.at(-1) || 0)];
-    const printed = new Set();
-    rightScaleValues.forEach((price) => {
-      const rounded = fixed(price);
-      if (printed.has(rounded)) return;
-      printed.add(rounded);
-      const y = padding.top + (maxPrice - Number(price)) / spread * plotHeight;
-      analysisCtx.strokeStyle = "rgba(255,255,255,0.08)";
-      analysisCtx.setLineDash([4, 6]);
-      analysisCtx.beginPath();
-      analysisCtx.moveTo(padding.left, y);
-      analysisCtx.lineTo(width - padding.right + 8, y);
-      analysisCtx.stroke();
-      analysisCtx.setLineDash([]);
-      analysisCtx.fillStyle = getComputedStyle(document.body).getPropertyValue("--text");
-      analysisCtx.fillText(rounded, width - padding.right + 16, y + 4);
-    });
-
-    const livePrice = Number(payload.current_price || closes.at(-1) || 0);
-    const liveY = padding.top + (maxPrice - livePrice) / spread * plotHeight;
-    analysisCtx.strokeStyle = "rgba(105, 211, 255, 0.88)";
-    analysisCtx.lineWidth = 1.4;
+  const drawTradeLevel = (price, color, label) => {
+    if (!price || Number.isNaN(Number(price))) return;
+    const y = padding.top + (maxPrice - Number(price)) / spread * plotHeight;
+    if (y < padding.top - 24 || y > height - padding.bottom + 24) return;
+    analysisCtx.strokeStyle = color;
+    analysisCtx.lineWidth = 1.6;
+    analysisCtx.setLineDash([9, 6]);
     analysisCtx.beginPath();
-    analysisCtx.moveTo(padding.left, liveY);
-    analysisCtx.lineTo(width - padding.right + 8, liveY);
+    analysisCtx.moveTo(padding.left, y);
+    analysisCtx.lineTo(width - padding.right + 8, y);
     analysisCtx.stroke();
-    analysisCtx.fillStyle = "rgba(105, 211, 255, 0.95)";
-    analysisCtx.fillRect(width - padding.right + 10, liveY - 12, 72, 22);
+    analysisCtx.setLineDash([]);
+    analysisCtx.fillStyle = color;
+    analysisCtx.fillRect(padding.left + 8, y - 12, 124, 20);
     analysisCtx.fillStyle = "#04131c";
-    analysisCtx.fillText(fixed(livePrice), width - padding.right + 18, liveY + 4);
+    analysisCtx.font = "12px Aptos";
+    analysisCtx.fillText(label, padding.left + 14, y + 3);
+  };
+
+  const executionPlan = payload?.execution_plan || {};
+  if (executionPlan.side && executionPlan.side !== "wait") {
+    drawTradeLevel(executionPlan.entry, "rgba(105, 211, 255, 0.95)", `Plan ${String(executionPlan.side).toUpperCase()} ${fixed(executionPlan.entry || 0)}`);
+    drawTradeLevel(executionPlan.stop_loss, "rgba(255, 107, 122, 0.95)", `Plan SL ${fixed(executionPlan.stop_loss || 0)}`);
+    drawTradeLevel(executionPlan.take_profit, "rgba(75, 240, 179, 0.95)", `Plan TP ${fixed(executionPlan.take_profit || 0)}`);
+  }
+
+  const managementPlan = payload?.management_plan || {};
+  if (managementPlan.has_open_position) {
+    drawTradeLevel(managementPlan.break_even_trigger, "rgba(255, 215, 97, 0.95)", `BE ${fixed(managementPlan.break_even_trigger || 0)}`);
+    drawTradeLevel(managementPlan.trailing_trigger, "rgba(193, 133, 255, 0.95)", `TRAIL ${fixed(managementPlan.trailing_trigger || 0)}`);
+  }
+
+  matchingTrades.forEach((trade) => {
+    if (Number(trade.stop_loss) > 0) {
+      drawTradeLevel(trade.stop_loss, "rgba(255, 107, 122, 0.95)", `SL ${fixed(trade.stop_loss)}`);
+    }
+    if (Number(trade.take_profit) > 0) {
+      drawTradeLevel(trade.take_profit, "rgba(75, 240, 179, 0.95)", `TP ${fixed(trade.take_profit)}`);
+    }
+  });
+
+  analysisCtx.fillStyle = getComputedStyle(document.body).getPropertyValue("--muted");
+  analysisCtx.font = "13px Cascadia Mono";
+  analysisCtx.fillText(fixed(maxPrice), 10, padding.top + 6);
+  analysisCtx.fillText(fixed(minPrice), 10, height - padding.bottom + 4);
+  analysisCtx.fillText(`${payload.symbol} ${payload.timeframe}`, padding.left, 18);
+
+  const rightScaleValues = [maxPrice, (maxPrice + minPrice) / 2, minPrice, Number(payload.current_price || closes.at(-1) || 0)];
+  const printed = new Set();
+  rightScaleValues.forEach((price) => {
+    const rounded = fixed(price);
+    if (printed.has(rounded)) return;
+    printed.add(rounded);
+    const y = padding.top + (maxPrice - Number(price)) / spread * plotHeight;
+    analysisCtx.strokeStyle = "rgba(255,255,255,0.08)";
+    analysisCtx.setLineDash([4, 6]);
+    analysisCtx.beginPath();
+    analysisCtx.moveTo(padding.left, y);
+    analysisCtx.lineTo(width - padding.right + 8, y);
+    analysisCtx.stroke();
+    analysisCtx.setLineDash([]);
+    analysisCtx.fillStyle = getComputedStyle(document.body).getPropertyValue("--text");
+    analysisCtx.fillText(rounded, width - padding.right + 16, y + 4);
+  });
+
+  const livePrice = Number(payload.current_price || closes.at(-1) || 0);
+  const liveY = padding.top + (maxPrice - livePrice) / spread * plotHeight;
+  analysisCtx.strokeStyle = "rgba(105, 211, 255, 0.88)";
+  analysisCtx.lineWidth = 1.4;
+  analysisCtx.beginPath();
+  analysisCtx.moveTo(padding.left, liveY);
+  analysisCtx.lineTo(width - padding.right + 8, liveY);
+  analysisCtx.stroke();
+  analysisCtx.fillStyle = "rgba(105, 211, 255, 0.95)";
+  analysisCtx.fillRect(width - padding.right + 10, liveY - 12, 72, 22);
+  analysisCtx.fillStyle = "#04131c";
+  analysisCtx.fillText(fixed(livePrice), width - padding.right + 18, liveY + 4);
   }
 
 async function refreshAnalysis() {
@@ -3439,8 +3524,11 @@ function alarmTitleFor(eventType) {
   const map = {
     entry: "Trade Started",
     close: "Trade Closed",
+    analysis_get_ready: "Analysis Get Ready",
     analysis_buy_confirmed: "Analysis Buy Now",
     analysis_sell_confirmed: "Analysis Sell Now",
+    analysis_break_even_prompt: "Analysis Break-Even Prompt",
+    analysis_trailing_prompt: "Analysis Trail-Stop Prompt",
     liquidity_sweep_detected: "Liquidity Sweep Detected",
     account_switched: "Trading Account Switched",
     m5_direction_shift: "M5 Direction Shift",
@@ -3476,8 +3564,11 @@ function buildTestAlert(eventType) {
   const messages = {
     entry: "Test only: this simulates a trade entry alarm.",
     close: "Test only: this simulates a trade close alarm. 3 trades closed in this batch.",
+    analysis_get_ready: "Test only: this simulates an analysis get-ready prompt.",
     analysis_buy_confirmed: "Test only: this simulates a confirmed analysis buy-now alert.",
     analysis_sell_confirmed: "Test only: this simulates a confirmed analysis sell-now alert.",
+    analysis_break_even_prompt: "Test only: this simulates a break-even management prompt.",
+    analysis_trailing_prompt: "Test only: this simulates a trailing-stop management prompt.",
     liquidity_sweep_detected: "Test only: this simulates a live engineered liquidity sweep alert.",
     account_switched: "Test only: this simulates a trading account switch alarm.",
     m5_direction_shift: "Test only: this simulates an M5 bullish direction shift alert.",
@@ -3998,8 +4089,11 @@ function playBrowserAlert(eventType) {
   const presets = {
     entry: [660, 880, 1040],
     close: [700, 900, 1200],
+    analysis_get_ready: [660, 740, 880],
     analysis_buy_confirmed: [988, 1244, 1568],
     analysis_sell_confirmed: [784, 659, 523],
+    analysis_break_even_prompt: [820, 1020, 1180],
+    analysis_trailing_prompt: [760, 920, 1080, 1240],
     liquidity_sweep_detected: [660, 990, 770],
     account_switched: [780, 980, 1180],
     m5_direction_shift: [780, 980, 1240, 1480],
@@ -4034,13 +4128,23 @@ function playBrowserAlert(eventType) {
   });
 }
 
-function speakAnalysisDecision(eventType) {
+function speakAnalysisDecision(alertOrEvent) {
   if (!("speechSynthesis" in window) || !window.SpeechSynthesisUtterance) return;
+  const eventType = typeof alertOrEvent === "string" ? alertOrEvent : String(alertOrEvent?.event_type || "");
+  const message = typeof alertOrEvent === "string" ? "" : String(alertOrEvent?.message || "");
+  const readySideMatch = message.match(/possible\s+(BUY|SELL)/i) || message.match(/get ready to\s+(buy|sell)/i);
+  const readySide = readySideMatch ? String(readySideMatch[1] || "").toLowerCase() : "";
   const phrase = eventType === "analysis_buy_confirmed"
     ? "Buy now"
     : eventType === "analysis_sell_confirmed"
       ? "Sell now"
-      : "";
+      : eventType === "analysis_get_ready"
+        ? readySide ? `Get ready to ${readySide}` : "Get ready"
+        : eventType === "analysis_break_even_prompt"
+          ? "Move stop to break even"
+          : eventType === "analysis_trailing_prompt"
+            ? "Trail stop now"
+            : "";
   if (!phrase) return;
   try {
     window.speechSynthesis.cancel();
@@ -4053,7 +4157,7 @@ function speakAnalysisDecision(eventType) {
 }
 
 function shouldLoopAlert(eventType) {
-  return !["analysis_buy_confirmed", "analysis_sell_confirmed"].includes(String(eventType || ""));
+  return !["analysis_get_ready", "analysis_buy_confirmed", "analysis_sell_confirmed", "analysis_break_even_prompt", "analysis_trailing_prompt"].includes(String(eventType || ""));
 }
 
 function stopAlarmLoop() {
@@ -4066,6 +4170,15 @@ function stopAlarmLoop() {
 function closeAlarmModal() {
   els.alarmModal.classList.add("hidden");
   els.alarmModal.setAttribute("aria-hidden", "true");
+}
+
+function shouldShowAlarmModal(alert) {
+  const eventType = String(alert?.event_type || "");
+  if (eventType !== "analysis_get_ready") return true;
+  const cycleKey = currentAnalysisPromptCycleKey();
+  if (state.analysisGetReadyModalCycle === cycleKey) return false;
+  state.analysisGetReadyModalCycle = cycleKey;
+  return true;
 }
 
 function openAlarmModal(alert) {
@@ -4088,11 +4201,15 @@ function triggerAlert(alert, key) {
   state.activeAlarmKey = key;
   if (!state.notificationsEnabled) return;
   if (!isAlertTypeEnabled(alert.event_type)) return;
-  openAlarmModal(alert);
+  if (shouldShowAlarmModal(alert)) {
+    openAlarmModal(alert);
+  } else {
+    closeAlarmModal();
+  }
   stopAlarmLoop();
   playBrowserAlert(alert.event_type);
   if (String(alert.event_type || "").startsWith("analysis_")) {
-    speakAnalysisDecision(alert.event_type);
+    speakAnalysisDecision(alert);
   }
   if (shouldLoopAlert(alert.event_type)) {
     state.activeAlarmInterval = setInterval(() => {
@@ -4221,6 +4338,57 @@ function showToast(title, body, tone = "success") {
   setTimeout(() => {
     toast.remove();
   }, 4200);
+}
+
+function ensureStickyAccountBar() {
+  let bar = document.querySelector("#stickyAccountBar");
+  if (bar) return bar;
+  const mainShell = document.querySelector(".main-shell");
+  const hero = document.querySelector(".hero");
+  if (!mainShell || !hero) return null;
+  bar = document.createElement("section");
+  bar.id = "stickyAccountBar";
+  bar.className = "account-sticky-bar";
+  bar.innerHTML = `
+    <article class="account-sticky-chip">
+      <span>Balance</span>
+      <strong id="stickyBalanceValue">$0.00</strong>
+      <small id="stickyBalanceMeta">Waiting for MT5</small>
+    </article>
+    <article class="account-sticky-chip">
+      <span>Equity</span>
+      <strong id="stickyEquityValue">$0.00</strong>
+      <small id="stickyEquityMeta">Waiting for MT5</small>
+    </article>
+    <article class="account-sticky-chip">
+      <span>Free Margin</span>
+      <strong id="stickyFreeMarginValue">$0.00</strong>
+      <small id="stickyAccountModeMeta">Account snapshot</small>
+    </article>
+  `;
+  hero.insertAdjacentElement("afterend", bar);
+  return bar;
+}
+
+function updateStickyAccountBar(account = state.accountSnapshot || {}) {
+  const bar = ensureStickyAccountBar();
+  if (!bar) return;
+  const centMode = isCentAccountSnapshot(account);
+  const balanceValue = bar.querySelector("#stickyBalanceValue");
+  const balanceMeta = bar.querySelector("#stickyBalanceMeta");
+  const equityValue = bar.querySelector("#stickyEquityValue");
+  const equityMeta = bar.querySelector("#stickyEquityMeta");
+  const freeMarginValue = bar.querySelector("#stickyFreeMarginValue");
+  const accountModeMeta = bar.querySelector("#stickyAccountModeMeta");
+  if (balanceValue) balanceValue.textContent = displayMoney(account.balance || 0, { centMode });
+  if (balanceMeta) balanceMeta.textContent = `Initial ${displayMoney(account.initial_balance || account.balance || 0, { centMode })}`;
+  if (equityValue) equityValue.textContent = displayMoney(account.equity || 0, { centMode });
+  if (equityMeta) equityMeta.textContent = `Floating ${displayMoney((account.equity || 0) - (account.balance || 0), { centMode })}`;
+  if (freeMarginValue) freeMarginValue.textContent = displayMoney(account.free_margin || 0, { centMode });
+  if (accountModeMeta) {
+    const leverage = Number(account.leverage || 0);
+    accountModeMeta.textContent = leverage > 0 ? `Leverage 1:${leverage}` : "Account snapshot";
+  }
 }
 
 function renderTerminalCards() {
