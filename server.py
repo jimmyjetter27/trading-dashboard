@@ -4103,20 +4103,12 @@ class MT5Monitor:
             empty_payload["prompt_state"]["summary"] = empty_payload["connection_error"]
             return empty_payload
 
-        target_symbol = symbol.strip() or self.primary_symbol or "XAUUSD"
-        symbol_info = mt5.symbol_info(target_symbol)
-        if symbol_info is None:
-            for candidate in (self.primary_symbol, "XAUUSD", "XAUUSDm", "GOLD"):
-                if not candidate:
-                    continue
-                symbol_info = mt5.symbol_info(candidate)
-                if symbol_info is not None:
-                    target_symbol = candidate
-                    break
+        requested_symbol = symbol.strip() or self.primary_symbol or "XAUUSD"
+        target_symbol, symbol_info, resolve_error = self._resolve_chart_symbol(requested_symbol)
         if symbol_info is None:
             empty_payload["connected"] = self.connected
             empty_payload["symbol"] = target_symbol
-            empty_payload["connection_error"] = f"Symbol {target_symbol} is not available in this terminal."
+            empty_payload["connection_error"] = resolve_error or f"Symbol {target_symbol} is not available in this terminal."
             empty_payload["prediction"]["summary"] = empty_payload["connection_error"]
             empty_payload["trade_advice"]["summary"] = empty_payload["connection_error"]
             empty_payload["prompt_state"]["summary"] = empty_payload["connection_error"]
@@ -4837,6 +4829,10 @@ class MT5Monitor:
         candidates = [requested, normalized]
         if normalized == "XAUUSD":
             candidates.extend(["XAUUSDm", "GOLD", "XAUUSD."])
+        elif normalized == "USOIL":
+            candidates.extend(["USOILm", "XBRUSD", "XTIUSD", "WTI", "WTIm", "USOilCash", "USOIL.", "USOILCash"])
+        elif normalized == "NASDAQ":
+            candidates.extend(["USTEC", "USTECm", "NAS100", "NAS100m", "US100", "US100m", "NASDAQ.", "NAS"])
         elif normalized == "BTCUSD":
             candidates.extend(["BTCUSDm", "BTCUSD.", "BTCUSDm."])
         elif normalized == "EURUSD":

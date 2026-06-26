@@ -41,7 +41,15 @@ const state = {
   smtpConfigured: false,
   sideNavCollapsed: localStorage.getItem("trade-observer-sidenav") === "collapsed",
   analysis: null,
+  analysisSymbol: localStorage.getItem("trade-observer-analysis-symbol") || "xauusd",
   analysisTimeframe: localStorage.getItem("trade-observer-analysis-timeframe") || "H1",
+  analysisViewportOffset: 0,
+  analysisInteraction: {
+    dragging: false,
+    startX: 0,
+    startOffset: 0,
+    lastStep: 10,
+  },
   markets: null,
   marketsView: localStorage.getItem("trade-observer-markets-view") || "cards",
   charts: null,
@@ -97,7 +105,6 @@ const ALERT_TOGGLE_DEFS = [
   ["close", "Trade Closed", "Manual or general close notifications."],
   ["analysis_buy_confirmed", "Analysis Buy Now", "Confirmed analysis buy-now prompts."],
   ["analysis_break_even_prompt", "Analysis Break-Even", "Prompts to move stop loss to breakeven."],
-  ["analysis_trailing_prompt", "Analysis Trail Stop", "Prompts to trail the stop on a live position."],
   ["liquidity_sweep_detected", "Liquidity Sweep", "Engineered liquidity sweep detection alerts."],
   ["closed_take_profit", "TP Closed", "When a trade closes at take profit."],
   ["take_profit_reached", "TP Reached", "When price reaches take profit on an open trade."],
@@ -402,6 +409,7 @@ const els = {
   analysisStage: document.querySelector("#analysisStage"),
   analysisFullscreenButton: document.querySelector("#analysisFullscreenButton"),
   analysisSymbol: document.querySelector("#analysisSymbol"),
+  analysisSymbolSelect: document.querySelector("#analysisSymbolSelect"),
   analysisTimeframe: document.querySelector("#analysisTimeframe"),
   analysisTimeframeSelect: document.querySelector("#analysisTimeframeSelect"),
   analysisBias: document.querySelector("#analysisBias"),
@@ -744,6 +752,22 @@ const calculatorPresets = {
     contractSize: 100,
     quoteCurrency: "USD",
     notes: "Gold default here matches the live desk: 1 pip = 0.01 price move.",
+    minLot: 0.01,
+    maxLot: 100,
+  },
+  USOIL: {
+    pipSize: 0.01,
+    contractSize: 100,
+    quoteCurrency: "USD",
+    notes: "Typical USOIL CFD assumption: 1 lot = 100 barrels, 1 pip = 0.01 price move. Broker contract specs can differ.",
+    minLot: 0.01,
+    maxLot: 100,
+  },
+  WTI: {
+    pipSize: 0.01,
+    contractSize: 100,
+    quoteCurrency: "USD",
+    notes: "Typical USOIL CFD assumption: 1 lot = 100 barrels, 1 pip = 0.01 price move. Broker contract specs can differ.",
     minLot: 0.01,
     maxLot: 100,
   },
@@ -1206,7 +1230,7 @@ function getRiskPlannerData() {
 }
 
 function getRiskChartPrecision(symbol) {
-  return symbol === "XAUUSD" || symbol === "BTCUSD" ? 2 : 5;
+  return ["XAUUSD", "GOLD", "USOIL", "WTI", "BTCUSD"].includes(symbol) ? 2 : 5;
 }
 
 function getRiskChartHandleAt(canvasX, canvasY) {
@@ -1911,10 +1935,14 @@ function setAllAlertTypesEnabled(enabled) {
 
 function renderAnalysis(payload) {
   state.analysis = payload;
+  clampAnalysisViewportOffset();
   els.analysisSymbol.textContent = payload?.symbol || "XAUUSD";
   els.analysisTimeframe.textContent = payload?.timeframe || state.analysisTimeframe || "H1";
   if (els.analysisTimeframeSelect) {
     els.analysisTimeframeSelect.value = payload?.timeframe || state.analysisTimeframe || "H1";
+  }
+  if (els.analysisSymbolSelect) {
+    els.analysisSymbolSelect.value = state.analysisSymbol || "xauusd";
   }
   if (els.analysisSession) {
     els.analysisSession.textContent = payload?.day_state?.session_label || payload?.market_snapshot?.session_name || "-";
@@ -1974,7 +2002,6 @@ function renderAnalysis(payload) {
   const promptEventMap = {
     buy_now: "analysis_buy_confirmed",
     break_even: "analysis_break_even_prompt",
-    trail_stop: "analysis_trailing_prompt",
   };
   const promptEvent = promptEventMap[promptState.state] || "";
   const analysisPromptKey = promptEvent
@@ -1993,7 +2020,7 @@ function renderAnalysis(payload) {
       {
         ts: new Date().toISOString(),
         event_type: promptEvent,
-        severity: ["analysis_break_even_prompt", "analysis_trailing_prompt"].includes(promptEvent) ? "warn" : "success",
+        severity: ["analysis_break_even_prompt"].includes(promptEvent) ? "warn" : "success",
         message: `${payload?.symbol || "XAUUSD"} ${payload?.timeframe || state.analysisTimeframe || "H1"}: ${promptState.summary || "Analysis prompt updated."}`,
         ticket: payload?.active_position?.ticket || null,
         symbol: payload?.symbol || state.currentSymbol || "XAUUSD",
@@ -2383,8 +2410,8 @@ function drawAnalysisChart(payload) {
   canvas.height = height;
   analysisCtx.clearRect(0, 0, width, height);
 
-  const candles = payload?.candles || [];
-  if (!candles.length) {
+  const sourceCandles = payload?.candles || [];
+  if (!sourceCandles.length) {
     analysisCtx.fillStyle = getComputedStyle(document.body).getPropertyValue("--panel-soft");
     analysisCtx.fillRect(0, 0, width, height);
     analysisCtx.fillStyle = getComputedStyle(document.body).getPropertyValue("--muted");
@@ -2392,6 +2419,13 @@ function drawAnalysisChart(payload) {
     analysisCtx.fillText(payload?.connection_error || "Waiting for XAUUSD candle data...", 24, height / 2);
     return;
   }
+
+  const visibleCount = Math.min(fullscreenActive ? 96 : 64, sourceCandles.length);
+  const maxOffset = Math.max(0, sourceCandles.length - visibleCount);
+  state.analysisViewportOffset = Math.max(0, Math.min(state.analysisViewportOffset || 0, maxOffset));
+  const endIndex = sourceCandles.length - state.analysisViewportOffset;
+  const startIndex = Math.max(0, endIndex - visibleCount);
+  const candles = sourceCandles.slice(startIndex, endIndex);
 
   const padding = { top: 24, right: 98, bottom: 28, left: 52 };
   const highs = candles.map((candle) => Number(candle.high));
@@ -2402,7 +2436,9 @@ function drawAnalysisChart(payload) {
   const spread = Math.max(maxPrice - minPrice, 0.01);
   const plotWidth = width - padding.left - padding.right;
   const plotHeight = height - padding.top - padding.bottom;
-  const candleWidth = Math.max(4, plotWidth / candles.length * 0.72);
+  const step = plotWidth / candles.length;
+  state.analysisInteraction.lastStep = step;
+  const candleWidth = Math.max(4, step * 0.72);
 
   analysisCtx.fillStyle = getComputedStyle(document.body).getPropertyValue("--panel-soft");
   analysisCtx.fillRect(0, 0, width, height);
@@ -2440,7 +2476,7 @@ function drawAnalysisChart(payload) {
   });
 
   candles.forEach((candle, index) => {
-    const centerX = padding.left + (index + 0.5) * (plotWidth / candles.length);
+    const centerX = padding.left + (index + 0.5) * step;
     const open = Number(candle.open);
     const close = Number(candle.close);
     const high = Number(candle.high);
@@ -2512,7 +2548,8 @@ function drawAnalysisChart(payload) {
   analysisCtx.font = "13px Cascadia Mono";
   analysisCtx.fillText(fixed(maxPrice), 10, padding.top + 6);
   analysisCtx.fillText(fixed(minPrice), 10, height - padding.bottom + 4);
-  analysisCtx.fillText(`${payload.symbol} ${payload.timeframe}`, padding.left, 18);
+  const offsetLabel = state.analysisViewportOffset > 0 ? ` · ${state.analysisViewportOffset} back` : "";
+  analysisCtx.fillText(`${payload.symbol} ${payload.timeframe}${offsetLabel}`, padding.left, 18);
 
   const rightScaleValues = [maxPrice, (maxPrice + minPrice) / 2, minPrice, Number(payload.current_price || closes.at(-1) || 0)];
   const printed = new Set();
@@ -2544,17 +2581,75 @@ function drawAnalysisChart(payload) {
   analysisCtx.fillRect(width - padding.right + 10, liveY - 12, 72, 22);
   analysisCtx.fillStyle = "#04131c";
   analysisCtx.fillText(fixed(livePrice), width - padding.right + 18, liveY + 4);
+  if (state.analysisViewportOffset > 0) {
+    analysisCtx.fillStyle = "rgba(4, 19, 28, 0.78)";
+    analysisCtx.fillRect(width - 176, 14, 144, 24);
+    analysisCtx.fillStyle = "#f2f7fb";
+    analysisCtx.font = "12px Aptos";
+    analysisCtx.fillText("Drag left for newer", width - 166, 30);
   }
+  }
+
+function clampAnalysisViewportOffset() {
+  const candles = Array.isArray(state.analysis?.candles) ? state.analysis.candles : [];
+  const fullscreenActive = Boolean(els.analysisStage && document.fullscreenElement === els.analysisStage);
+  const visibleCount = Math.min(fullscreenActive ? 96 : 64, candles.length || 0);
+  const maxOffset = Math.max(0, candles.length - visibleCount);
+  state.analysisViewportOffset = Math.max(0, Math.min(state.analysisViewportOffset || 0, maxOffset));
+}
+
+function beginAnalysisChartDrag(clientX) {
+  state.analysisInteraction.dragging = true;
+  state.analysisInteraction.startX = clientX;
+  state.analysisInteraction.startOffset = state.analysisViewportOffset || 0;
+  if (els.analysisCanvas) {
+    els.analysisCanvas.style.cursor = "grabbing";
+  }
+}
+
+function resolvePresetMarketKey(rawSymbol) {
+  const normalized = String(rawSymbol || "").trim().toUpperCase();
+  if (normalized.startsWith("XAUUSD") || normalized === "GOLD" || normalized === "GOLD.") return "XAUUSD";
+  if (
+    normalized.startsWith("USOIL")
+    || normalized.startsWith("WTI")
+    || normalized.startsWith("XTIUSD")
+    || normalized.startsWith("XBRUSD")
+    || normalized === "OIL"
+  ) return "USOIL";
+  if (normalized.startsWith("EURUSD")) return "EURUSD";
+  if (normalized.startsWith("GBPUSD")) return "GBPUSD";
+  if (normalized.startsWith("USDJPY")) return "USDJPY";
+  if (normalized.startsWith("BTCUSD")) return "BTCUSD";
+  return "XAUUSD";
+}
+
+function moveAnalysisChartDrag(clientX) {
+  if (!state.analysisInteraction.dragging || !state.analysis) return;
+  const step = Math.max(6, Number(state.analysisInteraction.lastStep || 10));
+  const deltaX = clientX - state.analysisInteraction.startX;
+  const candleShift = Math.round(deltaX / step);
+  state.analysisViewportOffset = state.analysisInteraction.startOffset + candleShift;
+  clampAnalysisViewportOffset();
+  drawAnalysisChart(state.analysis);
+}
+
+function endAnalysisChartDrag() {
+  state.analysisInteraction.dragging = false;
+  if (els.analysisCanvas) {
+    els.analysisCanvas.style.cursor = state.analysis?.candles?.length ? "grab" : "default";
+  }
+}
 
 async function refreshAnalysis() {
   try {
-    const symbol = state.currentSymbol || "XAUUSD";
+    const symbol = (state.analysisSymbol || "xauusd").toUpperCase();
     const timeframe = state.analysisTimeframe || "H1";
     const payload = await fetchJson(`/api/analysis?symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(timeframe)}`);
     renderAnalysis(payload);
   } catch (error) {
     renderAnalysis({
-      symbol: state.currentSymbol || "XAUUSD",
+      symbol: (state.analysisSymbol || "xauusd").toUpperCase(),
       timeframe: state.analysisTimeframe || "H1",
       candles: [],
       zones: [],
@@ -3528,7 +3623,6 @@ function alarmTitleFor(eventType) {
     close: "Trade Closed",
     analysis_buy_confirmed: "Analysis Buy Now",
     analysis_break_even_prompt: "Analysis Break-Even Prompt",
-    analysis_trailing_prompt: "Analysis Trail-Stop Prompt",
     liquidity_sweep_detected: "Liquidity Sweep Detected",
     account_switched: "Trading Account Switched",
     m5_direction_shift: "M5 Direction Shift",
@@ -3566,7 +3660,6 @@ function buildTestAlert(eventType) {
     close: "Test only: this simulates a trade close alarm. 3 trades closed in this batch.",
     analysis_buy_confirmed: "Test only: this simulates a confirmed analysis buy-now alert.",
     analysis_break_even_prompt: "Test only: this simulates a break-even management prompt.",
-    analysis_trailing_prompt: "Test only: this simulates a trailing-stop management prompt.",
     liquidity_sweep_detected: "Test only: this simulates a live engineered liquidity sweep alert.",
     account_switched: "Test only: this simulates a trading account switch alarm.",
     m5_direction_shift: "Test only: this simulates an M5 bullish direction shift alert.",
@@ -3629,18 +3722,7 @@ function renderTradeCards(trades, account) {
   }
 
   const estimateTradeOutcome = (trade, targetPrice) => {
-    const rawSymbol = String(trade.symbol || "").toUpperCase();
-    const marketKey = rawSymbol.startsWith("XAUUSD")
-      ? "XAUUSD"
-      : rawSymbol.startsWith("EURUSD")
-        ? "EURUSD"
-        : rawSymbol.startsWith("GBPUSD")
-          ? "GBPUSD"
-          : rawSymbol.startsWith("USDJPY")
-            ? "USDJPY"
-            : rawSymbol.startsWith("BTCUSD")
-              ? "BTCUSD"
-              : "XAUUSD";
+    const marketKey = resolvePresetMarketKey(trade.symbol);
     const market = calculatorPresets[marketKey] || calculatorPresets.XAUUSD;
     const entry = Number(trade.entry_price || 0);
     const exit = Number(targetPrice || 0);
@@ -4089,7 +4171,6 @@ function playBrowserAlert(eventType) {
     close: [700, 900, 1200],
     analysis_buy_confirmed: [988, 1244, 1568],
     analysis_break_even_prompt: [820, 1020, 1180],
-    analysis_trailing_prompt: [760, 920, 1080, 1240],
     liquidity_sweep_detected: [660, 990, 770],
     account_switched: [780, 980, 1180],
     m5_direction_shift: [780, 980, 1240, 1480],
@@ -4131,9 +4212,7 @@ function speakAnalysisDecision(alertOrEvent) {
     ? "Buy now"
     : eventType === "analysis_break_even_prompt"
           ? "Move stop to break even"
-          : eventType === "analysis_trailing_prompt"
-            ? "Trail stop now"
-            : "";
+          : "";
   if (!phrase) return;
   try {
     window.speechSynthesis.cancel();
@@ -4146,7 +4225,7 @@ function speakAnalysisDecision(alertOrEvent) {
 }
 
 function shouldLoopAlert(eventType) {
-  return !["analysis_buy_confirmed", "analysis_break_even_prompt", "analysis_trailing_prompt"].includes(String(eventType || ""));
+  return !["analysis_buy_confirmed", "analysis_break_even_prompt"].includes(String(eventType || ""));
 }
 
 function stopAlarmLoop() {
@@ -5201,7 +5280,40 @@ function bindEvents() {
   els.analysisTimeframeSelect?.addEventListener("change", () => {
     state.analysisTimeframe = els.analysisTimeframeSelect.value || "H1";
     localStorage.setItem("trade-observer-analysis-timeframe", state.analysisTimeframe);
+    state.analysisViewportOffset = 0;
     refreshAnalysis().catch(() => {});
+  });
+
+  els.analysisSymbolSelect?.addEventListener("change", () => {
+    state.analysisSymbol = (els.analysisSymbolSelect.value || "xauusd").toLowerCase();
+    localStorage.setItem("trade-observer-analysis-symbol", state.analysisSymbol);
+    state.analysisViewportOffset = 0;
+    refreshAnalysis().catch(() => {});
+  });
+
+  els.analysisCanvas?.addEventListener("pointerdown", (event) => {
+    if (!state.analysis?.candles?.length) return;
+    beginAnalysisChartDrag(event.clientX);
+    els.analysisCanvas?.setPointerCapture?.(event.pointerId);
+    event.preventDefault();
+  });
+
+  els.analysisCanvas?.addEventListener("pointermove", (event) => {
+    if (!state.analysisInteraction.dragging) {
+      els.analysisCanvas.style.cursor = state.analysis?.candles?.length ? "grab" : "default";
+      return;
+    }
+    moveAnalysisChartDrag(event.clientX);
+    event.preventDefault();
+  });
+
+  els.analysisCanvas?.addEventListener("pointerup", (event) => {
+    els.analysisCanvas?.releasePointerCapture?.(event.pointerId);
+    endAnalysisChartDrag();
+  });
+
+  els.analysisCanvas?.addEventListener("pointercancel", () => {
+    endAnalysisChartDrag();
   });
 
   els.analysisFullscreenButton?.addEventListener("click", () => {
