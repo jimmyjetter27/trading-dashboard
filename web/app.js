@@ -95,9 +95,7 @@ function currentAnalysisPromptCycleKey() {
 const ALERT_TOGGLE_DEFS = [
   ["entry", "Trade Started", "New trade entry alarms."],
   ["close", "Trade Closed", "Manual or general close notifications."],
-  ["analysis_get_ready", "Analysis Get Ready", "Heads-up prompts when the bot logic is almost ready."],
   ["analysis_buy_confirmed", "Analysis Buy Now", "Confirmed analysis buy-now prompts."],
-  ["analysis_sell_confirmed", "Analysis Sell Now", "Confirmed analysis sell-now prompts."],
   ["analysis_break_even_prompt", "Analysis Break-Even", "Prompts to move stop loss to breakeven."],
   ["analysis_trailing_prompt", "Analysis Trail Stop", "Prompts to trail the stop on a live position."],
   ["liquidity_sweep_detected", "Liquidity Sweep", "Engineered liquidity sweep detection alerts."],
@@ -1944,7 +1942,6 @@ function renderAnalysis(payload) {
     const actionLabelMap = {
       buy_now: "Buy Now",
       sell_now: "Sell Now",
-      get_ready: "Get Ready",
       break_even: "Move To Break-Even",
       trail_stop: "Trail Stop Now",
       manage: "Manage Open Trade",
@@ -1976,8 +1973,6 @@ function renderAnalysis(payload) {
     : "";
   const promptEventMap = {
     buy_now: "analysis_buy_confirmed",
-    sell_now: "analysis_sell_confirmed",
-    get_ready: "analysis_get_ready",
     break_even: "analysis_break_even_prompt",
     trail_stop: "analysis_trailing_prompt",
   };
@@ -1998,7 +1993,7 @@ function renderAnalysis(payload) {
       {
         ts: new Date().toISOString(),
         event_type: promptEvent,
-        severity: ["analysis_sell_confirmed", "analysis_break_even_prompt", "analysis_trailing_prompt"].includes(promptEvent) ? "warn" : "success",
+        severity: ["analysis_break_even_prompt", "analysis_trailing_prompt"].includes(promptEvent) ? "warn" : "success",
         message: `${payload?.symbol || "XAUUSD"} ${payload?.timeframe || state.analysisTimeframe || "H1"}: ${promptState.summary || "Analysis prompt updated."}`,
         ticket: payload?.active_position?.ticket || null,
         symbol: payload?.symbol || state.currentSymbol || "XAUUSD",
@@ -2039,6 +2034,8 @@ function renderAnalysis(payload) {
     const snapshot = payload?.market_snapshot || {};
     const dayState = payload?.day_state || {};
     const biasModel = payload?.bias_model || {};
+    const consolidation = payload?.consolidation_context || {};
+    const consolidationRange = consolidation?.range || {};
     els.analysisBotContext.innerHTML = `
       <article class="analysis-item ${payload?.bias === "bullish" ? "bullish" : payload?.bias === "bearish" ? "bearish" : "neutral"}">
         <strong>Bias Model</strong>
@@ -2048,6 +2045,11 @@ function renderAnalysis(payload) {
       <article class="analysis-item neutral">
         <strong>Market Snapshot</strong>
         <p>Spread ${fixed(snapshot.spread_points || 0, 1)} pts | ATR ${fixed(snapshot.atr_points || 0, 1)} pts | Kill Zone ${snapshot.kill_zone_active ? "Active" : "Inactive"}</p>
+      </article>
+      <article class="analysis-item ${consolidation.in_consolidation ? "pivot" : "neutral"}">
+        <strong>Consolidation Read (${consolidation.timeframe || "M5"})</strong>
+        <p>${consolidation.message || "Consolidation analysis is unavailable right now."}</p>
+        <p>Range ${fixed(consolidationRange.low || 0)} to ${fixed(consolidationRange.high || 0)} | Size ${fixed(consolidationRange.size || 0)}</p>
       </article>
       <article class="analysis-item neutral">
         <strong>Daily State</strong>
@@ -3524,9 +3526,7 @@ function alarmTitleFor(eventType) {
   const map = {
     entry: "Trade Started",
     close: "Trade Closed",
-    analysis_get_ready: "Analysis Get Ready",
     analysis_buy_confirmed: "Analysis Buy Now",
-    analysis_sell_confirmed: "Analysis Sell Now",
     analysis_break_even_prompt: "Analysis Break-Even Prompt",
     analysis_trailing_prompt: "Analysis Trail-Stop Prompt",
     liquidity_sweep_detected: "Liquidity Sweep Detected",
@@ -3564,9 +3564,7 @@ function buildTestAlert(eventType) {
   const messages = {
     entry: "Test only: this simulates a trade entry alarm.",
     close: "Test only: this simulates a trade close alarm. 3 trades closed in this batch.",
-    analysis_get_ready: "Test only: this simulates an analysis get-ready prompt.",
     analysis_buy_confirmed: "Test only: this simulates a confirmed analysis buy-now alert.",
-    analysis_sell_confirmed: "Test only: this simulates a confirmed analysis sell-now alert.",
     analysis_break_even_prompt: "Test only: this simulates a break-even management prompt.",
     analysis_trailing_prompt: "Test only: this simulates a trailing-stop management prompt.",
     liquidity_sweep_detected: "Test only: this simulates a live engineered liquidity sweep alert.",
@@ -4089,9 +4087,7 @@ function playBrowserAlert(eventType) {
   const presets = {
     entry: [660, 880, 1040],
     close: [700, 900, 1200],
-    analysis_get_ready: [660, 740, 880],
     analysis_buy_confirmed: [988, 1244, 1568],
-    analysis_sell_confirmed: [784, 659, 523],
     analysis_break_even_prompt: [820, 1020, 1180],
     analysis_trailing_prompt: [760, 920, 1080, 1240],
     liquidity_sweep_detected: [660, 990, 770],
@@ -4131,16 +4127,9 @@ function playBrowserAlert(eventType) {
 function speakAnalysisDecision(alertOrEvent) {
   if (!("speechSynthesis" in window) || !window.SpeechSynthesisUtterance) return;
   const eventType = typeof alertOrEvent === "string" ? alertOrEvent : String(alertOrEvent?.event_type || "");
-  const message = typeof alertOrEvent === "string" ? "" : String(alertOrEvent?.message || "");
-  const readySideMatch = message.match(/possible\s+(BUY|SELL)/i) || message.match(/get ready to\s+(buy|sell)/i);
-  const readySide = readySideMatch ? String(readySideMatch[1] || "").toLowerCase() : "";
   const phrase = eventType === "analysis_buy_confirmed"
     ? "Buy now"
-    : eventType === "analysis_sell_confirmed"
-      ? "Sell now"
-      : eventType === "analysis_get_ready"
-        ? readySide ? `Get ready to ${readySide}` : "Get ready"
-        : eventType === "analysis_break_even_prompt"
+    : eventType === "analysis_break_even_prompt"
           ? "Move stop to break even"
           : eventType === "analysis_trailing_prompt"
             ? "Trail stop now"
@@ -4157,7 +4146,7 @@ function speakAnalysisDecision(alertOrEvent) {
 }
 
 function shouldLoopAlert(eventType) {
-  return !["analysis_get_ready", "analysis_buy_confirmed", "analysis_sell_confirmed", "analysis_break_even_prompt", "analysis_trailing_prompt"].includes(String(eventType || ""));
+  return !["analysis_buy_confirmed", "analysis_break_even_prompt", "analysis_trailing_prompt"].includes(String(eventType || ""));
 }
 
 function stopAlarmLoop() {
@@ -4173,11 +4162,6 @@ function closeAlarmModal() {
 }
 
 function shouldShowAlarmModal(alert) {
-  const eventType = String(alert?.event_type || "");
-  if (eventType !== "analysis_get_ready") return true;
-  const cycleKey = currentAnalysisPromptCycleKey();
-  if (state.analysisGetReadyModalCycle === cycleKey) return false;
-  state.analysisGetReadyModalCycle = cycleKey;
   return true;
 }
 

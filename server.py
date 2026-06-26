@@ -4253,7 +4253,12 @@ class MT5Monitor:
         trail_step_atr = 0.5
 
         session_gate = build_gate("Trading session", session_allowed, f"{session_name} window {'is active' if session_allowed else 'is outside the bot trading windows 00-06, 07-11, 13-17 UTC.'}")
-        spread_gate = build_gate("Spread filter", spread_points <= max_spread_points, f"{spread_points:.1f} pts against a max of {max_spread_points:.1f} pts.")
+        spread_gate = build_gate(
+            "Spread",
+            spread_points <= max_spread_points,
+            f"{spread_points:.1f} pts right now. Reference ceiling: {max_spread_points:.1f} pts.",
+            blocking=False,
+        )
         atr_gate = build_gate("ATR filter", atr_points >= min_atr_points, f"{atr_points:.1f} pts against a minimum of {min_atr_points:.1f} pts.")
         position_gate = build_gate("Open-position cap", open_positions_total < max_positions, f"{open_positions_total} open position(s) against a max of {max_positions}.")
         trade_cap_gate = build_gate("Daily trade cap", today_trade_count < max_daily_trades, f"{today_trade_count} entry deal(s) today against a max of {max_daily_trades}.")
@@ -4263,23 +4268,8 @@ class MT5Monitor:
         gate_checks = [session_gate, spread_gate, atr_gate, position_gate, trade_cap_gate, daily_loss_gate, daily_profit_gate, kill_zone_note]
         blocking_failures = [gate for gate in gate_checks if gate["blocking"] and not gate["passed"]]
         can_trade_now = not blocking_failures and side in {"buy", "sell"}
-
-        session_distance_minutes = None
-        future_markers = []
-        for hour_marker in (0, 7, 13):
-            future = now_utc.replace(hour=hour_marker, minute=0, second=0, microsecond=0)
-            if future < now_utc:
-                future += timedelta(days=1)
-            future_markers.append(int((future - now_utc).total_seconds() / 60))
-        session_distance_minutes = min(future_markers) if future_markers else None
-        should_get_ready = (
-            not can_trade_now
-            and side in {"buy", "sell"}
-            and (
-                (session_distance_minutes is not None and session_distance_minutes <= 30)
-                or (session_allowed and spread_points <= max_spread_points * 1.25 and atr_points >= min_atr_points * 0.85)
-            )
-        )
+        consolidation_timeframe = timeframe_label if timeframe_label in {"M5", "M15"} else "M5"
+        consolidation_snapshot = self.consolidation_data(target_symbol, consolidation_timeframe)
 
         entry_price = round(ask if side == "buy" else bid if side == "sell" else current_price, digits)
         stop_loss = round(entry_price - atr_value * atr_sl_multiplier, digits) if side == "buy" else round(entry_price + atr_value * atr_sl_multiplier, digits) if side == "sell" else entry_price
@@ -4415,8 +4405,6 @@ class MT5Monitor:
             prompt_state = {"state": "buy_now", "tone": "bullish", "summary": f"Buy now. All bot gates are open and price is above the H4 EMA200. Entry {entry_price:.2f}, stop {stop_loss:.2f}, take profit {take_profit:.2f}."}
         elif can_trade_now and side == "sell":
             prompt_state = {"state": "sell_now", "tone": "bearish", "summary": f"Sell now. All bot gates are open and price is below the H4 EMA200. Entry {entry_price:.2f}, stop {stop_loss:.2f}, take profit {take_profit:.2f}."}
-        elif should_get_ready and side in {"buy", "sell"}:
-            prompt_state = {"state": "get_ready", "tone": "neutral", "summary": f"Get ready for a possible {side.upper()}. Bias is set, but one of the gates still needs to clear."}
         elif blocking_failures:
             prompt_state = {"state": "blocked", "tone": "neutral", "summary": f"Stand aside for now. The first blocking condition is: {blocking_failures[0]['label']}."}
 
@@ -4431,6 +4419,7 @@ class MT5Monitor:
             {"title": "Bias Model", "detail": f"Current price {current_price:.2f} is {'above' if bias == 'bullish' else 'below' if bias == 'bearish' else 'at'} the H4 EMA200 at {h4_ema200:.2f}.", "tone": "bullish" if bias == "bullish" else "bearish" if bias == "bearish" else "neutral"},
             {"title": "Session & Kill Zone", "detail": f"Session is {session_name}. Trading window is {'open' if session_allowed else 'closed'} and kill zone is {'active' if kill_zone_active else 'inactive'}.", "tone": "neutral"},
             {"title": "Spread / ATR", "detail": f"Spread is {spread_points:.1f} pts and M5 ATR is {atr_points:.1f} pts.", "tone": "neutral"},
+            {"title": "Consolidation Read", "detail": consolidation_snapshot.get("message", f"{target_symbol} consolidation read is unavailable right now."), "tone": "pivot" if consolidation_snapshot.get("in_consolidation") else "neutral"},
             {"title": "Liquidity Context", "detail": f"{len(liquidity_levels)} recent liquidity levels, {len(fvgs)} fair value gaps, and {len(order_blocks)} order blocks are in view.", "tone": "pivot"},
             {"title": "Risk Plan", "detail": f"Suggested lot is {margin_capped_lot:.2f} with {risk_percent:.1f}% risk and ~{rr_ratio:.2f}R reward profile.", "tone": "neutral"},
         ]
@@ -4485,6 +4474,18 @@ class MT5Monitor:
                 "kill_zone_active": kill_zone_active,
                 "digits": digits,
                 "point": point,
+            },
+            "consolidation_context": {
+                "timeframe": consolidation_snapshot.get("timeframe", consolidation_timeframe),
+                "in_consolidation": bool(consolidation_snapshot.get("in_consolidation")),
+                "status": consolidation_snapshot.get("status", "unavailable"),
+                "message": consolidation_snapshot.get("message", ""),
+                "range": consolidation_snapshot.get("range"),
+                "upper_zone": consolidation_snapshot.get("upper_zone"),
+                "lower_zone": consolidation_snapshot.get("lower_zone"),
+                "average_true_range": consolidation_snapshot.get("average_true_range", 0.0),
+                "average_body": consolidation_snapshot.get("average_body", 0.0),
+                "breakout_buffer": consolidation_snapshot.get("breakout_buffer", 0.0),
             },
             "bias_model": {
                 "side": side,
