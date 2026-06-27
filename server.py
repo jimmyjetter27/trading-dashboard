@@ -20,6 +20,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
+from history_backfill import BackfillConfig, HistoricalBackfillService
 from signal_lab import SignalLabService
 from orl_suite import (
     ATRService,
@@ -51,12 +52,32 @@ except ImportError:  # pragma: no cover
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "web"
 DB_PATH = BASE_DIR / "trade_observer.sqlite3"
+AURUMBOX_MEMORY_DB_PATH = BASE_DIR / "aurumbox_memory.sqlite3"
 OBSERVERS_DIR = BASE_DIR.parent / "Bot" / "Observers"
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("MT5_OBSERVER_PORT", "8765"))
 USD_PER_GHS = 0.09
 MT5_DISCOVERY_ROOT = Path(os.environ.get("MT5_DISCOVERY_ROOT", "C:/MT5"))
 SECURITY_DEFAULT_TERMINAL_ROOT = Path(os.environ.get("MT5_SECURITY_DEFAULT_ROOT", "C:/MT5/JamesANabiah"))
+SERVER_OUTPUT_LOG_PATH = BASE_DIR / "server_output.log"
+SERVER_ERROR_LOG_PATH = BASE_DIR / "server_error.log"
+DEFAULT_HISTORY_TERMINAL_PATH = Path(os.environ.get("MT5_HISTORY_TERMINAL_PATH", "C:/MT5/XMLive/terminal64.exe"))
+DEFAULT_HISTORY_SYMBOLS = [
+    "XAUUSDm",
+    "XAUUSD",
+    "GOLD",
+    "BTCUSD",
+    "BTCUSDm",
+    "USOIL",
+    "USOILm",
+    "NAS100",
+    "USTEC",
+    "US30",
+    "EURUSD",
+    "GBPUSD",
+    "USDJPY",
+]
+DEFAULT_HISTORY_TIMEFRAMES = ["M1", "M5", "M15", "M30", "H1", "H4", "D1"]
 MT5_AUTHORIZED_RE = re.compile(
     r"'(?P<login>\d+)': authorized on (?P<server>.+?)"
     r"(?: through Access Point #(?P<access_point>\d+) \(ping: (?P<ping_ms>[\d.]+) ms, build (?P<build>\d+)\))?$"
@@ -66,6 +87,7 @@ MT5_PREVIOUS_AUTH_RE = re.compile(
     r" on (?P<date>\d{4}\.\d{2}\.\d{2}) (?P<time>\d{2}:\d{2}:\d{2})"
 )
 SECURITY_LOGIN_CACHE: dict[str, Any] = {"events": [], "summary": {}, "terminals": [], "limitations": [], "source_root": str(SECURITY_DEFAULT_TERMINAL_ROOT)}
+SERVER_LOG_LOCK = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -104,6 +126,24 @@ def utc_now() -> datetime:
 
 def iso_now() -> str:
     return utc_now().isoformat()
+
+
+def append_server_log(path: Path, message: str) -> None:
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with SERVER_LOG_LOCK:
+            with path.open("a", encoding="utf-8") as handle:
+                handle.write(f"[{iso_now()}] {message}\n")
+    except Exception:
+        pass
+
+
+def log_output(message: str) -> None:
+    append_server_log(SERVER_OUTPUT_LOG_PATH, message)
+
+
+def log_error(message: str) -> None:
+    append_server_log(SERVER_ERROR_LOG_PATH, message)
 
 
 def json_default(value: Any) -> Any:
@@ -4059,6 +4099,33 @@ class MT5Monitor:
             order_blocks.sort(key=lambda item: item["time"], reverse=True)
             return order_blocks[:5]
 
+        def swing_structure_summary(levels: list[dict[str, Any]]) -> dict[str, Any]:
+            highs = sorted((item for item in levels if item.get("kind") == "high"), key=lambda item: item.get("time", ""))
+            lows = sorted((item for item in levels if item.get("kind") == "low"), key=lambda item: item.get("time", ""))
+            if len(highs) < 2 or len(lows) < 2:
+                return {
+                    "direction": "neutral",
+                    "summary": "Not enough recent swing highs and lows yet to confirm a clean HH/HL or LH/LL sequence.",
+                }
+            previous_high = safe_float(highs[-2].get("price"))
+            latest_high = safe_float(highs[-1].get("price"))
+            previous_low = safe_float(lows[-2].get("price"))
+            latest_low = safe_float(lows[-1].get("price"))
+            if latest_high > previous_high and latest_low > previous_low:
+                return {
+                    "direction": "bullish",
+                    "summary": f"Recent swings are printing higher highs and higher lows ({previous_high:.2f} -> {latest_high:.2f}, {previous_low:.2f} -> {latest_low:.2f}).",
+                }
+            if latest_high < previous_high and latest_low < previous_low:
+                return {
+                    "direction": "bearish",
+                    "summary": f"Recent swings are printing lower highs and lower lows ({previous_high:.2f} -> {latest_high:.2f}, {previous_low:.2f} -> {latest_low:.2f}).",
+                }
+            return {
+                "direction": "neutral",
+                "summary": f"Recent swings are mixed. Highs moved {previous_high:.2f} -> {latest_high:.2f} while lows moved {previous_low:.2f} -> {latest_low:.2f}.",
+            }
+
         timeframe_key = (timeframe or "H1").strip().upper()
         timeframe_map = {
             "M1": ("TIMEFRAME_M1", "M1"),
@@ -4121,12 +4188,12 @@ class MT5Monitor:
             target_symbol,
             getattr(mt5, timeframe_attr, getattr(mt5, "TIMEFRAME_H1", 16385)),
             0,
-            220,
+            420,
         )
         m5_rates = mt5.copy_rates_from_pos(target_symbol, getattr(mt5, "TIMEFRAME_M5", 5), 0, 220)
         h4_rates = mt5.copy_rates_from_pos(target_symbol, getattr(mt5, "TIMEFRAME_H4", 16388), 0, 260)
         h1_rates = mt5.copy_rates_from_pos(target_symbol, getattr(mt5, "TIMEFRAME_H1", 16385), 0, 120)
-        if rates is None or len(rates) < 60 or m5_rates is None or len(m5_rates) < 80 or h4_rates is None or len(h4_rates) < 210:
+        if rates is None or len(rates) < 80 or m5_rates is None or len(m5_rates) < 80 or h4_rates is None or len(h4_rates) < 210:
             empty_payload["connected"] = self.connected
             empty_payload["symbol"] = target_symbol
             empty_payload["connection_error"] = f"Could not load bot-style analysis candles for {target_symbol}."
@@ -4172,7 +4239,14 @@ class MT5Monitor:
 
         h4_ema200 = ema(h4_closes[-220:], 200)
         h1_ema34 = ema(h1_closes[-60:], 34) if h1_closes else 0.0
+        local_closes = [safe_float(item["close"]) for item in candles]
+        local_ema34 = ema(local_closes[-60:], 34) if local_closes else 0.0
         bias = "bullish" if current_price > h4_ema200 else "bearish" if current_price < h4_ema200 else "neutral"
+        local_bias = "bullish" if current_price > local_ema34 else "bearish" if current_price < local_ema34 else "neutral"
+        if bias in {"bullish", "bearish"} and local_bias in {"bullish", "bearish"}:
+            bias_alignment = "aligned" if bias == local_bias else "pullback"
+        else:
+            bias_alignment = "mixed"
         side = "buy" if bias == "bullish" else "sell" if bias == "bearish" else "wait"
 
         now_utc = datetime.now(UTC)
@@ -4215,6 +4289,7 @@ class MT5Monitor:
         liquidity_levels = recent_liquidity_levels(m5_candles[-120:], 50, atr_value * 0.1 if atr_value else point * 20)
         fvgs = recent_fvgs(m5_candles[-80:], atr_value or point * 120)
         order_blocks = recent_order_blocks(m5_candles[-80:], atr_value or point * 120)
+        swing_structure = swing_structure_summary(recent_liquidity_levels(candles[-160:], 50, atr_value * 0.1 if atr_value else point * 20))
 
         recent_window = candles[-80:]
         range_high = max(safe_float(item["high"]) for item in recent_window)
@@ -4228,6 +4303,132 @@ class MT5Monitor:
         fib_382 = fib_anchor_high - fib_range * 0.382
         fib_500 = fib_anchor_high - fib_range * 0.5
         fib_618 = fib_anchor_high - fib_range * 0.618
+
+        def session_range_for_day(candles_input: list[dict[str, Any]], start_hour: int, end_hour: int) -> dict[str, Any] | None:
+            session_rows: list[dict[str, Any]] = []
+            for item in candles_input:
+                try:
+                    ts = datetime.fromisoformat(str(item.get("time") or ""))
+                except Exception:
+                    continue
+                if ts.date() != now_utc.date():
+                    continue
+                if start_hour <= ts.hour <= end_hour:
+                    session_rows.append(item)
+            if not session_rows:
+                return None
+            return {
+                "high": round(max(safe_float(row["high"]) for row in session_rows), 2),
+                "low": round(min(safe_float(row["low"]) for row in session_rows), 2),
+                "start_time": str(session_rows[0].get("time") or ""),
+                "end_time": str(session_rows[-1].get("time") or ""),
+            }
+
+        latest_candle_time = str(candles[-1].get("time") or "")
+        previous_day_level = self._active_period_level_for_time(self._previous_day_levels(target_symbol, point), latest_candle_time)
+        previous_week_level = self._active_period_level_for_time(self._previous_week_levels(target_symbol, point), latest_candle_time)
+        previous_month_level = self._active_period_level_for_time(self._previous_month_levels(target_symbol, point), latest_candle_time)
+        asian_session_range = session_range_for_day(m5_candles, 0, 6)
+        london_session_range = session_range_for_day(m5_candles, 7, 12)
+
+        key_levels: list[dict[str, Any]] = []
+        if previous_day_level:
+            key_levels.extend(
+                [
+                    {"label": "PDH", "code": "PDH", "price": round(safe_float(previous_day_level.get("previous_high")), 2), "kind": "resistance", "group": "previous_day"},
+                    {"label": "PDL", "code": "PDL", "price": round(safe_float(previous_day_level.get("previous_low")), 2), "kind": "support", "group": "previous_day"},
+                ]
+            )
+        if previous_week_level:
+            key_levels.extend(
+                [
+                    {"label": "PWH", "code": "PWH", "price": round(safe_float(previous_week_level.get("previous_high")), 2), "kind": "resistance", "group": "weekly"},
+                    {"label": "PWL", "code": "PWL", "price": round(safe_float(previous_week_level.get("previous_low")), 2), "kind": "support", "group": "weekly"},
+                ]
+            )
+        if previous_month_level:
+            key_levels.extend(
+                [
+                    {"label": "PMH", "code": "PMH", "price": round(safe_float(previous_month_level.get("previous_high")), 2), "kind": "resistance", "group": "monthly"},
+                    {"label": "PML", "code": "PML", "price": round(safe_float(previous_month_level.get("previous_low")), 2), "kind": "support", "group": "monthly"},
+                ]
+            )
+        if asian_session_range:
+            key_levels.extend(
+                [
+                    {"label": "Asian High", "code": "ASH", "price": round(safe_float(asian_session_range.get("high")), 2), "kind": "resistance", "group": "asian"},
+                    {"label": "Asian Low", "code": "ASL", "price": round(safe_float(asian_session_range.get("low")), 2), "kind": "support", "group": "asian"},
+                ]
+            )
+        if london_session_range:
+            key_levels.extend(
+                [
+                    {"label": "London High", "code": "LDNH", "price": round(safe_float(london_session_range.get("high")), 2), "kind": "resistance", "group": "london"},
+                    {"label": "London Low", "code": "LDNL", "price": round(safe_float(london_session_range.get("low")), 2), "kind": "support", "group": "london"},
+                ]
+            )
+
+        recent_local_high = max(safe_float(item["high"]) for item in candles[-13:-1]) if len(candles) >= 14 else swing_high
+        recent_local_low = min(safe_float(item["low"]) for item in candles[-13:-1]) if len(candles) >= 14 else swing_low
+        last_close = safe_float(candles[-1]["close"]) if candles else current_price
+        previous_local_ema34 = ema(local_closes[-61:-1], 34) if len(local_closes) >= 35 else local_ema34
+        local_ema_slope = local_ema34 - previous_local_ema34
+        bullish_breakout = last_close > recent_local_high
+        bearish_breakout = last_close < recent_local_low
+        continuation_side = local_bias if local_bias in {"bullish", "bearish"} else bias
+        continuation_score = 50
+        continuation_factors: list[str] = []
+
+        if bias_alignment == "aligned":
+            continuation_score += 20
+            continuation_factors.append("Macro and local bias are aligned.")
+        elif bias_alignment == "pullback":
+            continuation_score -= 20
+            continuation_factors.append("Local move is currently counter-trend versus the macro bias.")
+        else:
+            continuation_factors.append("Bias is mixed or neutral, so continuation confidence is softer.")
+
+        if swing_structure.get("direction") == continuation_side:
+            continuation_score += 15
+            continuation_factors.append("Recent swing structure supports the local direction.")
+        elif swing_structure.get("direction") in {"bullish", "bearish"}:
+            continuation_score -= 10
+            continuation_factors.append("Recent swing structure disagrees with the local direction.")
+
+        if continuation_side == "bullish":
+            if bullish_breakout:
+                continuation_score += 15
+                continuation_factors.append("Price is breaking above the recent local high.")
+            if local_ema_slope > 0:
+                continuation_score += 10
+                continuation_factors.append("The selected-timeframe EMA34 is sloping upward.")
+            else:
+                continuation_score -= 5
+            if current_price > h1_ema34:
+                continuation_score += 10
+                continuation_factors.append("Price is also above the H1 EMA34, which supports follow-through.")
+        elif continuation_side == "bearish":
+            if bearish_breakout:
+                continuation_score += 15
+                continuation_factors.append("Price is breaking below the recent local low.")
+            if local_ema_slope < 0:
+                continuation_score += 10
+                continuation_factors.append("The selected-timeframe EMA34 is sloping downward.")
+            else:
+                continuation_score -= 5
+            if current_price < h1_ema34:
+                continuation_score += 10
+                continuation_factors.append("Price is also below the H1 EMA34, which supports follow-through.")
+
+        continuation_score = max(5, min(95, continuation_score))
+        if bias_alignment == "pullback" and continuation_score < 60:
+            continuation_label = "Likely pullback"
+        elif continuation_score >= 75:
+            continuation_label = "Continuation confirmed"
+        elif continuation_score >= 60:
+            continuation_label = "Possible continuation building"
+        else:
+            continuation_label = "Mixed / fragile"
 
         risk_percent = 1.0
         max_daily_risk_percent = 5.0
@@ -4409,9 +4610,11 @@ class MT5Monitor:
         ]
         confluences = [
             {"title": "Bias Model", "detail": f"Current price {current_price:.2f} is {'above' if bias == 'bullish' else 'below' if bias == 'bearish' else 'at'} the H4 EMA200 at {h4_ema200:.2f}.", "tone": "bullish" if bias == "bullish" else "bearish" if bias == "bearish" else "neutral"},
+            {"title": "Continuation Read", "detail": f"{continuation_label} ({continuation_score}/100). {' '.join(continuation_factors[:3])}", "tone": "bullish" if continuation_side == "bullish" and continuation_score >= 60 else "bearish" if continuation_side == "bearish" and continuation_score >= 60 else "neutral"},
             {"title": "Session & Kill Zone", "detail": f"Session is {session_name}. Trading window is {'open' if session_allowed else 'closed'} and kill zone is {'active' if kill_zone_active else 'inactive'}.", "tone": "neutral"},
             {"title": "Spread / ATR", "detail": f"Spread is {spread_points:.1f} pts and M5 ATR is {atr_points:.1f} pts.", "tone": "neutral"},
             {"title": "Consolidation Read", "detail": consolidation_snapshot.get("message", f"{target_symbol} consolidation read is unavailable right now."), "tone": "pivot" if consolidation_snapshot.get("in_consolidation") else "neutral"},
+            {"title": "Swing Structure", "detail": swing_structure.get("summary", "Recent swing structure is unavailable right now."), "tone": "bullish" if swing_structure.get("direction") == "bullish" else "bearish" if swing_structure.get("direction") == "bearish" else "neutral"},
             {"title": "Liquidity Context", "detail": f"{len(liquidity_levels)} recent liquidity levels, {len(fvgs)} fair value gaps, and {len(order_blocks)} order blocks are in view.", "tone": "pivot"},
             {"title": "Risk Plan", "detail": f"Suggested lot is {margin_capped_lot:.2f} with {risk_percent:.1f}% risk and ~{rr_ratio:.2f}R reward profile.", "tone": "neutral"},
         ]
@@ -4434,8 +4637,9 @@ class MT5Monitor:
             "connection_error": self.connection_error,
             "symbol": target_symbol,
             "timeframe": timeframe_label,
-            "candles": candles[-100:],
+            "candles": candles[-320:],
             "zones": zones,
+            "key_levels": key_levels,
             "confluences": confluences,
             "bias": bias,
             "current_price": current_price,
@@ -4481,9 +4685,18 @@ class MT5Monitor:
             },
             "bias_model": {
                 "side": side,
+                "macro_bias": bias,
+                "local_bias": local_bias,
+                "alignment": bias_alignment,
                 "h4_ema200": h4_ema200,
                 "h1_ema34": h1_ema34,
+                "local_ema34": local_ema34,
                 "price_vs_h4_ema200": current_price - h4_ema200,
+                "price_vs_local_ema34": current_price - local_ema34,
+                "continuation_side": continuation_side,
+                "continuation_score": continuation_score,
+                "continuation_label": continuation_label,
+                "continuation_factors": continuation_factors,
             },
             "execution_plan": execution_plan,
             "risk_plan": risk_plan,
@@ -4492,6 +4705,7 @@ class MT5Monitor:
                 "liquidity_levels": liquidity_levels,
                 "fair_value_gaps": fvgs,
                 "order_blocks": order_blocks,
+                "swing_structure": swing_structure,
             },
             "active_position": active_position,
             "prompt_state": prompt_state,
@@ -5477,6 +5691,17 @@ ORL_ALERTS = ORLAlertService(
 )
 MONITOR.orl_live_observer = ORLLiveObserverService(ORL_ENGINE, ORL_ALERTS, ORL_SETTINGS)
 SIGNAL_LAB = SignalLabService(DB, mt5, lambda: MONITOR._initialize(), print)
+HISTORY_BACKFILL = HistoricalBackfillService(
+    AURUMBOX_MEMORY_DB_PATH,
+    config=BackfillConfig(
+        default_terminal_path=str(DEFAULT_HISTORY_TERMINAL_PATH),
+        default_symbols=DEFAULT_HISTORY_SYMBOLS,
+        default_timeframes=DEFAULT_HISTORY_TIMEFRAMES,
+        default_days=30,
+    ),
+    log_output=log_output,
+    log_error=log_error,
+)
 
 
 class AppHandler(SimpleHTTPRequestHandler):
@@ -5682,9 +5907,29 @@ class AppHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/health":
             self._send_json({"ok": True, "time": iso_now()})
             return
+        if parsed.path == "/api/history/symbols":
+            self._send_json(HISTORY_BACKFILL.list_symbols())
+            return
+        if parsed.path == "/api/history/timeframes":
+            self._send_json(HISTORY_BACKFILL.list_timeframes())
+            return
+        if parsed.path == "/api/history/summary":
+            self._send_json(HISTORY_BACKFILL.summary())
+            return
+        if parsed.path.startswith("/api/history/backfill/") and parsed.path.endswith("/status"):
+            try:
+                job_id = int(parsed.path.split("/")[-2])
+            except (TypeError, ValueError):
+                self._send_json({"ok": False, "error": "Invalid backfill job id."}, status=HTTPStatus.BAD_REQUEST)
+                return
+            payload = HISTORY_BACKFILL.get_job_status(job_id)
+            status = HTTPStatus.OK if payload.get("ok") else HTTPStatus.NOT_FOUND
+            self._send_json(payload, status=status)
+            return
         page_routes = {
             "/live": "/live.html",
             "/analysis": "/analysis.html",
+            "/historical-data": "/historical_data.html",
             "/market-intel": "/market_intel.html",
             "/playbook": "/playbook.html",
             "/signal-lab": "/signal_lab.html",
@@ -5701,6 +5946,7 @@ class AppHandler(SimpleHTTPRequestHandler):
             "/tools": "/tools.html",
             "/live.html": "/live.html",
             "/analysis.html": "/analysis.html",
+            "/historical_data.html": "/historical_data.html",
             "/market_intel.html": "/market_intel.html",
             "/playbook.html": "/playbook.html",
             "/signal_lab.html": "/signal_lab.html",
@@ -5916,6 +6162,18 @@ class AppHandler(SimpleHTTPRequestHandler):
                 traceback.print_exc()
                 response = {"ok": False, "message": f"Signal Lab backtest failed: {exc}"}
                 status = HTTPStatus.INTERNAL_SERVER_ERROR
+            self._send_json(response, status=status)
+            return
+        if parsed.path == "/api/history/backfill":
+            payload = self._read_json_body()
+            response = HISTORY_BACKFILL.start_backfill(payload)
+            status = HTTPStatus.OK if response.get("ok") else HTTPStatus.BAD_REQUEST
+            self._send_json(response, status=status)
+            return
+        if parsed.path == "/api/history/clear":
+            self._read_json_body()
+            response = HISTORY_BACKFILL.clear_all_data()
+            status = HTTPStatus.OK if response.get("ok") else HTTPStatus.INTERNAL_SERVER_ERROR
             self._send_json(response, status=status)
             return
         if parsed.path == "/api/email-notifications":

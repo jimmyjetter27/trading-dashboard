@@ -1,0 +1,24 @@
+[2026-06-27T13:56:35.984183+00:00] History backfill item failed | {"job_id": 1, "symbol": "BTCUSDm", "timeframe": "H1", "error": "Symbol not found or not selectable: BTCUSDm. MT5 last_error=(-1, 'Terminal: Call failed')"}
+Traceback (most recent call last):
+  File "C:\Users\ZBook\Desktop\Trading\MetaTrader_Trade_Observer\history_backfill.py", line 1052, in _run_job
+    result = self._process_symbol_timeframe(
+        symbol=symbol,
+    ...<6 lines>...
+        detect_liquidity_sweeps=payload["detect_liquidity_sweeps"],
+    )
+  File "C:\Users\ZBook\Desktop\Trading\MetaTrader_Trade_Observer\history_backfill.py", line 1121, in _process_symbol_timeframe
+    raise RuntimeError(f"Symbol not found or not selectable: {symbol}. MT5 last_error={mt5.last_error()}")
+RuntimeError: Symbol not found or not selectable: BTCUSDm. MT5 last_error=(-1, 'Terminal: Call failed')
+
+[2026-06-27T13:56:36.097462+00:00] History backfill item failed | {"job_id": 1, "symbol": "BTCUSDm", "timeframe": "M15", "error": "Symbol not found or not selectable: BTCUSDm. MT5 last_error=(-1, 'Terminal: Call failed')"}
+Traceback (most recent call last):
+  File "C:\Users\ZBook\Desktop\Trading\MetaTrader_Trade_Observer\history_backfill.py", line 1052, in _run_job
+    result = self._process_symbol_timeframe(
+        symbol=symbol,
+    ...<6 lines>...
+        detect_liquidity_sweeps=payload["detect_liquidity_sweeps"],
+    )
+  File "C:\Users\ZBook\Desktop\Trading\MetaTrader_Trade_Observer\history_backfill.py", line 1121, in _process_symbol_timeframe
+    raise RuntimeError(f"Symbol not found or not selectable: {symbol}. MT5 last_error={mt5.last_error()}")
+RuntimeError: Symbol not found or not selectable: BTCUSDm. MT5 last_error=(-1, 'Terminal: Call failed')
+

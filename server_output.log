@@ -1,0 +1,7 @@
+[2026-06-27T13:56:32.100272+00:00] History backfill job queued | {"job_id": 1, "symbols": ["BTCUSD", "BTCUSDm", "EURUSD", "GOLD"], "timeframes": ["M15", "H1"], "from": "2026-05-01", "to": "2026-06-26"}
+[2026-06-27T13:56:33.543989+00:00] History backfill item completed | {"job_id": 1, "symbol": "BTCUSD", "timeframe": "H1", "fetched_rows": 960, "inserted_rows": 960, "duplicates_skipped": 0, "tick_rows": 0}
+[2026-06-27T13:56:35.851466+00:00] History backfill item completed | {"job_id": 1, "symbol": "BTCUSD", "timeframe": "M15", "fetched_rows": 3834, "inserted_rows": 3834, "duplicates_skipped": 0, "tick_rows": 0}
+[2026-06-27T13:56:37.471959+00:00] History backfill item completed | {"job_id": 1, "symbol": "EURUSD", "timeframe": "H1", "fetched_rows": 723, "inserted_rows": 723, "duplicates_skipped": 0, "tick_rows": 0}
+[2026-06-27T13:56:39.570372+00:00] History backfill item completed | {"job_id": 1, "symbol": "EURUSD", "timeframe": "M15", "fetched_rows": 2889, "inserted_rows": 2889, "duplicates_skipped": 0, "tick_rows": 0}
+[2026-06-27T13:56:40.146201+00:00] History backfill item completed | {"job_id": 1, "symbol": "GOLD", "timeframe": "H1", "fetched_rows": 937, "inserted_rows": 937, "duplicates_skipped": 0, "tick_rows": 0}
+[2026-06-27T13:56:42.555803+00:00] History backfill item completed | {"job_id": 1, "symbol": "GOLD", "timeframe": "M15", "fetched_rows": 3746, "inserted_rows": 3746, "duplicates_skipped": 0, "tick_rows": 0}

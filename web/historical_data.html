@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Historical Data Backfill</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/styles.css?v=20260627a">
+</head>
+<body data-current-page="historical-data">
+  <div class="app-shell shell-layout">
+    <aside class="side-nav" id="sideNav">
+      <div class="side-nav-head">
+        <div>
+          <p class="eyebrow">MetaTrader Monitor</p>
+          <h2>Observer</h2>
+        </div>
+        <button class="theme-button nav-toggle" id="sideNavToggle" type="button">Collapse</button>
+      </div>
+      <nav class="page-nav side-page-nav" id="pageNav">
+        <a class="theme-button page-tab" href="/live" data-page="live"><span class="page-tab-label">Live Desk</span></a>
+        <a class="theme-button page-tab" href="/analysis" data-page="analysis"><span class="page-tab-label">Analysis</span></a>
+        <a class="theme-button page-tab active" href="/historical-data" data-page="historical-data"><span class="page-tab-label">Historical Data</span></a>
+        <a class="theme-button page-tab" href="/market-intel" data-page="market-intel"><span class="page-tab-label">Market Intel</span></a>
+        <a class="theme-button page-tab" href="/playbook" data-page="playbook"><span class="page-tab-label">Playbook</span></a>
+        <a class="theme-button page-tab" href="/charts" data-page="charts"><span class="page-tab-label">Charts</span></a>
+        <a class="theme-button page-tab" href="/xau-chart" data-page="xau-chart"><span class="page-tab-label">XAU Chart</span></a>
+        <a class="theme-button page-tab" href="/consolidation" data-page="consolidation"><span class="page-tab-label">Consolidation</span></a>
+        <a class="theme-button page-tab" href="/calculator" data-page="calculator"><span class="page-tab-label">Calculator</span></a>
+        <a class="theme-button page-tab" href="/risk" data-page="risk"><span class="page-tab-label">Risk Planner</span></a>
+        <a class="theme-button page-tab" href="/markets" data-page="markets"><span class="page-tab-label">Markets</span></a>
+        <a class="theme-button page-tab" href="/security" data-page="security"><span class="page-tab-label">Security</span></a>
+        <a class="theme-button page-tab" href="/journal" data-page="journal"><span class="page-tab-label">Journal</span></a>
+        <a class="theme-button page-tab" href="/tools" data-page="tools"><span class="page-tab-label">Tools</span></a>
+      </nav>
+    </aside>
+
+    <main class="main-shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">AurumBox Memory</p>
+          <h1>Historical Data Backfill</h1>
+          <p class="hero-copy">Fetch MT5 historical bars into a separate SQLite memory store for research, sweep detection, dashboard analytics, and future AI model training.</p>
+        </div>
+        <div class="hero-meta">
+          <div class="status-pill" id="historyStatusPill">Ready</div>
+          <div class="toolbar">
+            <button class="theme-button" id="themeToggle" type="button">Toggle Theme</button>
+          </div>
+        </div>
+      </header>
+
+      <section class="panel page-section historical-page">
+        <div class="panel-head">
+          <div>
+            <p class="panel-kicker">Backfill Controls</p>
+            <h2>Fetch Historical Data</h2>
+          </div>
+        </div>
+
+        <div class="historical-form-grid">
+          <label class="analysis-control historical-span-2">
+            <span>MT5 Terminal Path</span>
+            <input class="toolbar-select" id="historyTerminalPathInput" type="text" placeholder="C:/MT5/XMLive/terminal64.exe">
+          </label>
+          <label class="analysis-control">
+            <span>From Date</span>
+            <input class="toolbar-select" id="historyFromDateInput" type="date">
+          </label>
+          <label class="analysis-control">
+            <span>To Date</span>
+            <input class="toolbar-select" id="historyToDateInput" type="date">
+          </label>
+        </div>
+
+        <div class="historical-selection-grid">
+          <article class="panel analysis-card">
+            <div class="panel-head">
+              <div>
+                <p class="panel-kicker">Symbols</p>
+                <h3>Broker Symbol Universe</h3>
+              </div>
+            </div>
+            <div class="historical-chip-grid" id="historySymbols"></div>
+          </article>
+          <article class="panel analysis-card">
+            <div class="panel-head">
+              <div>
+                <p class="panel-kicker">Timeframes</p>
+                <h3>Candle Resolutions</h3>
+              </div>
+            </div>
+            <div class="historical-chip-grid" id="historyTimeframes"></div>
+          </article>
+        </div>
+
+        <div class="historical-toggle-grid">
+          <label class="toggle-chip">
+            <input id="historyIncludeTicksInput" type="checkbox">
+            <span class="toggle-slider"></span>
+            <span class="toggle-label">Include Ticks</span>
+          </label>
+          <label class="toggle-chip">
+            <input id="historyIndicatorsInput" type="checkbox" checked>
+            <span class="toggle-slider"></span>
+            <span class="toggle-label">Calculate Indicators</span>
+          </label>
+          <label class="toggle-chip">
+            <input id="historyRangesInput" type="checkbox" checked>
+            <span class="toggle-slider"></span>
+            <span class="toggle-label">Detect Ranges</span>
+          </label>
+          <label class="toggle-chip">
+            <input id="historySweepsInput" type="checkbox" checked>
+            <span class="toggle-slider"></span>
+            <span class="toggle-label">Detect Liquidity Sweeps</span>
+          </label>
+        </div>
+
+        <div class="analysis-banner neutral" id="historyWarningBanner">Bars are fetched in UTC. Tick backfills can be heavy, so they are off by default.</div>
+
+        <div class="toolbar historical-toolbar">
+          <button class="theme-button primary-button" id="historyStartButton" type="button">Fetch Historical Data</button>
+          <button class="theme-button" id="historyRefreshSummaryButton" type="button">Refresh Summary</button>
+          <button class="theme-button danger-button" id="historyClearDataButton" type="button">Delete Data</button>
+        </div>
+      </section>
+
+      <section class="analysis-topline historical-metrics">
+        <div><span>Inserted Bars</span><strong id="historyInsertedCount">0</strong></div>
+        <div><span>Duplicates Skipped</span><strong id="historyDuplicateCount">0</strong></div>
+        <div><span>Failed Rows</span><strong id="historyFailedCount">0</strong></div>
+        <div><span>Tick Rows</span><strong id="historyTickCount">0</strong></div>
+        <div><span>Job Status</span><strong id="historyJobStatus">Idle</strong></div>
+      </section>
+
+      <section class="layout-grid historical-layout">
+        <article class="panel analysis-card">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Job Progress</p>
+              <h2>Backfill Items</h2>
+            </div>
+          </div>
+          <div class="historical-job-meta" id="historyJobMeta">No backfill job has started yet.</div>
+          <div class="table-wrap">
+            <table class="data-table historical-table">
+              <thead>
+                <tr>
+                  <th>Symbol</th>
+                  <th>TF</th>
+                  <th>Status</th>
+                  <th>Fetched</th>
+                  <th>Inserted</th>
+                  <th>Skipped</th>
+                  <th>Failed</th>
+                  <th>Ticks</th>
+                  <th>Last Error</th>
+                </tr>
+              </thead>
+              <tbody id="historyJobItemsBody">
+                <tr><td colspan="9"><div class="empty-state">Job progress will appear here after you start a backfill.</div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="panel analysis-card">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Database Summary</p>
+              <h2>AurumBox Memory</h2>
+            </div>
+          </div>
+          <div class="analysis-list" id="historySummaryCards"></div>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <script src="/historical_data.js?v=20260627a"></script>
+</body>
+</html>

@@ -43,12 +43,22 @@ const state = {
   analysis: null,
   analysisSymbol: localStorage.getItem("trade-observer-analysis-symbol") || "xauusd",
   analysisTimeframe: localStorage.getItem("trade-observer-analysis-timeframe") || "H1",
+  analysisTimeDisplayMode: localStorage.getItem("trade-observer-analysis-time-display-mode") || "local",
+  analysisZoneAlertsEnabled: localStorage.getItem("trade-observer-analysis-zone-alerts") !== "off",
+  analysisSwingStructureEnabled: localStorage.getItem("trade-observer-analysis-swing-structure") !== "off",
+  analysisLevelToggles: JSON.parse(localStorage.getItem("trade-observer-analysis-level-toggles") || "{\"previous_day\":true,\"london\":true,\"asian\":true,\"weekly\":false,\"monthly\":false}"),
+  analysisDetectedBrokerOffsetHours: 0,
+  analysisLoading: false,
+  analysisLastRefreshAt: 0,
+  analysisZoneStates: {},
   analysisViewportOffset: 0,
   analysisInteraction: {
     dragging: false,
     startX: 0,
     startOffset: 0,
     lastStep: 10,
+    hoverIndex: null,
+    geometry: null,
   },
   markets: null,
   marketsView: localStorage.getItem("trade-observer-markets-view") || "cards",
@@ -105,6 +115,8 @@ const ALERT_TOGGLE_DEFS = [
   ["close", "Trade Closed", "Manual or general close notifications."],
   ["analysis_buy_confirmed", "Analysis Buy Now", "Confirmed analysis buy-now prompts."],
   ["analysis_break_even_prompt", "Analysis Break-Even", "Prompts to move stop loss to breakeven."],
+  ["analysis_zone_approach", "Zone Approach", "One-time alerts when price approaches the primary support or resistance zone."],
+  ["analysis_key_level_hit", "Key Level Hit", "One-time alerts when price touches a tracked level like PDH, PDL, or London high/low."],
   ["liquidity_sweep_detected", "Liquidity Sweep", "Engineered liquidity sweep detection alerts."],
   ["closed_take_profit", "TP Closed", "When a trade closes at take profit."],
   ["take_profit_reached", "TP Reached", "When price reaches take profit on an open trade."],
@@ -412,11 +424,18 @@ const els = {
   analysisSymbolSelect: document.querySelector("#analysisSymbolSelect"),
   analysisTimeframe: document.querySelector("#analysisTimeframe"),
   analysisTimeframeSelect: document.querySelector("#analysisTimeframeSelect"),
+  analysisSwingToggleButton: document.querySelector("#analysisSwingToggleButton"),
   analysisBias: document.querySelector("#analysisBias"),
+  analysisLocalBias: document.querySelector("#analysisLocalBias"),
+  analysisBiasAlignment: document.querySelector("#analysisBiasAlignment"),
   analysisPrice: document.querySelector("#analysisPrice"),
   analysisSession: document.querySelector("#analysisSession"),
+  analysisNextCandle: document.querySelector("#analysisNextCandle"),
+  analysisClockMode: document.querySelector("#analysisClockMode"),
   analysisPrediction: document.querySelector("#analysisPrediction"),
   analysisOpenMarkets: document.querySelector("#analysisOpenMarkets"),
+  analysisLevelToggles: document.querySelector("#analysisLevelToggles"),
+  analysisChartStatus: document.querySelector("#analysisChartStatus"),
   analysisTradeRead: document.querySelector("#analysisTradeRead"),
   analysisGateChecks: document.querySelector("#analysisGateChecks"),
   analysisRiskPlan: document.querySelector("#analysisRiskPlan"),
@@ -424,6 +443,9 @@ const els = {
   analysisManagementPlan: document.querySelector("#analysisManagementPlan"),
   analysisZones: document.querySelector("#analysisZones"),
   analysisConfluences: document.querySelector("#analysisConfluences"),
+  analysisTimeDisplayModeSelect: document.querySelector("#analysisTimeDisplayModeSelect"),
+  analysisBrokerOffsetDisplay: document.querySelector("#analysisBrokerOffsetDisplay"),
+  analysisZoneAlertToggleButton: document.querySelector("#analysisZoneAlertToggleButton"),
   chartsCanvas: document.querySelector("#chartsCanvas"),
   chartStage: document.querySelector("#chartStage"),
   chartSymbolSelect: document.querySelector("#chartSymbolSelect"),
@@ -613,13 +635,29 @@ function resolvePage() {
     .toLowerCase();
   const fromStorage = localStorage.getItem("trade-observer-page") || "live";
   const candidate = fromBody || fromPath || fromStorage;
-  return ["live", "journal", "tools", "analysis", "market-intel", "playbook", "signal-lab", "markets", "charts", "xau-chart", "liquidity-sweeps", "consolidation", "calculator", "risk"].includes(candidate) ? candidate : "live";
+  return ["live", "journal", "tools", "analysis", "historical-data", "market-intel", "playbook", "signal-lab", "markets", "charts", "xau-chart", "liquidity-sweeps", "consolidation", "calculator", "risk"].includes(candidate) ? candidate : "live";
 }
 
 function ensureDynamicPageLinks() {
   const pageNav = els.pageNav;
   if (!pageNav) return;
   pageNav.querySelectorAll('[data-page="signal-lab"]').forEach((node) => node.remove());
+  if (!pageNav.querySelector('[data-page="historical-data"]')) {
+    const anchor = document.createElement("a");
+    anchor.className = "theme-button page-tab";
+    anchor.href = "/historical-data";
+    anchor.setAttribute("data-page", "historical-data");
+    anchor.setAttribute("data-tooltip", "Historical Data");
+    anchor.innerHTML = '<svg class="page-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v14H5z"></path><path d="M8 3v4"></path><path d="M16 3v4"></path><path d="M5 10h14"></path><path d="M9 14h2"></path><path d="M13 14h2"></path><path d="M9 18h6"></path></svg><span class="page-tab-label">Historical Data</span>';
+    const analysisLink = pageNav.querySelector('[data-page="analysis"]');
+    if (analysisLink?.nextSibling) {
+      analysisLink.parentNode.insertBefore(anchor, analysisLink.nextSibling);
+    } else if (analysisLink?.parentNode) {
+      analysisLink.parentNode.appendChild(anchor);
+    } else {
+      pageNav.appendChild(anchor);
+    }
+  }
   if (!pageNav.querySelector('[data-page="market-intel"]')) {
     const anchor = document.createElement("a");
     anchor.className = "theme-button page-tab";
@@ -1852,6 +1890,167 @@ function formatUtcDateTime(value) {
   return date.toISOString().replace("T", " ").replace(".000Z", " UTC").replace("Z", " UTC");
 }
 
+function timeframeToMinutes(timeframe = "H1") {
+  const tf = String(timeframe || "H1").trim().toUpperCase();
+  const map = {
+    M1: 1,
+    M2: 2,
+    M3: 3,
+    M5: 5,
+    M15: 15,
+    M30: 30,
+    H1: 60,
+    H2: 120,
+    H4: 240,
+    D1: 1440,
+    D: 1440,
+    W1: 10080,
+    W: 10080,
+    MN1: 43200,
+    MN: 43200,
+    M: 43200,
+  };
+  return map[tf] || 60;
+}
+
+function floorUtcDateToTimeframe(date, timeframe = "H1") {
+  const minutes = timeframeToMinutes(timeframe);
+  const result = new Date(date.getTime());
+  result.setUTCSeconds(0, 0);
+  if (minutes < 60) {
+    result.setUTCMinutes(Math.floor(result.getUTCMinutes() / minutes) * minutes);
+    return result;
+  }
+  if (minutes < 1440) {
+    const totalMinutes = result.getUTCHours() * 60 + result.getUTCMinutes();
+    const flooredMinutes = Math.floor(totalMinutes / minutes) * minutes;
+    result.setUTCHours(0, 0, 0, 0);
+    result.setUTCMinutes(flooredMinutes);
+    return result;
+  }
+  if (minutes === 1440) {
+    result.setUTCHours(0, 0, 0, 0);
+    return result;
+  }
+  if (minutes === 10080) {
+    const day = result.getUTCDay();
+    const diff = day === 0 ? 6 : day - 1;
+    result.setUTCDate(result.getUTCDate() - diff);
+    result.setUTCHours(0, 0, 0, 0);
+    return result;
+  }
+  result.setUTCDate(1);
+  result.setUTCHours(0, 0, 0, 0);
+  return result;
+}
+
+function detectAnalysisBrokerOffsetHours(payload) {
+  const candles = Array.isArray(payload?.candles) ? payload.candles : [];
+  const lastRawTime = candles.length ? String(candles[candles.length - 1]?.time || "") : "";
+  if (!lastRawTime) return 0;
+  const lastTime = new Date(lastRawTime);
+  if (Number.isNaN(lastTime.getTime())) return 0;
+  const flooredNow = floorUtcDateToTimeframe(new Date(), payload?.timeframe || state.analysisTimeframe || "H1");
+  const diffHours = Math.round((lastTime.getTime() - flooredNow.getTime()) / 3600000);
+  return Math.abs(diffHours) <= 14 ? diffHours : 0;
+}
+
+function getAnalysisTimezoneLabel() {
+  if (state.analysisTimeDisplayMode === "broker") {
+    const offset = Number(state.analysisDetectedBrokerOffsetHours || 0);
+    return `Broker ${offset >= 0 ? "+" : ""}${offset}h`;
+  }
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || "Local";
+}
+
+function getAnalysisDisplayDate(value) {
+  if (!value) return null;
+  const raw = new Date(value);
+  if (Number.isNaN(raw.getTime())) return null;
+  if (state.analysisTimeDisplayMode === "broker") {
+    return raw;
+  }
+  return new Date(raw.getTime() - Number(state.analysisDetectedBrokerOffsetHours || 0) * 3600000);
+}
+
+function getAnalysisClockNow() {
+  const now = new Date();
+  if (state.analysisTimeDisplayMode === "broker") {
+    return new Date(now.getTime() + Number(state.analysisDetectedBrokerOffsetHours || 0) * 3600000);
+  }
+  return now;
+}
+
+function formatAnalysisTime(value, timeframe = "H1") {
+  const date = getAnalysisDisplayDate(value);
+  if (!date) return String(value || "-");
+  const tf = String(timeframe || "H1").trim().toUpperCase();
+  const options = tf === "D1" || tf === "D" || tf === "W1" || tf === "W" || tf === "MN1" || tf === "MN" || tf === "M"
+    ? { year: "numeric", month: "short", day: "2-digit" }
+    : { year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false };
+  return `${new Intl.DateTimeFormat(undefined, options).format(date)} ${state.analysisTimeDisplayMode === "broker" ? "Broker" : getAnalysisTimezoneLabel()}`;
+}
+
+function formatCountdown(msRemaining) {
+  if (!Number.isFinite(msRemaining) || msRemaining <= 0) return "00:00";
+  const totalSeconds = Math.floor(msRemaining / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) {
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  }
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function renderAnalysisTimingMeta() {
+  if (els.analysisClockMode) {
+    els.analysisClockMode.textContent = state.analysisTimeDisplayMode === "broker" ? "Broker Time" : "My Time";
+  }
+  if (els.analysisTimeDisplayModeSelect) {
+    els.analysisTimeDisplayModeSelect.value = state.analysisTimeDisplayMode || "local";
+  }
+  if (els.analysisBrokerOffsetDisplay) {
+    const offset = Number(state.analysisDetectedBrokerOffsetHours || 0);
+    els.analysisBrokerOffsetDisplay.value = `Auto-detected ${offset >= 0 ? "+" : ""}${offset}h from UTC`;
+  }
+  if (els.analysisZoneAlertToggleButton) {
+    els.analysisZoneAlertToggleButton.textContent = state.analysisZoneAlertsEnabled ? "Alerts On" : "Alerts Off";
+  }
+  if (!els.analysisNextCandle) return;
+  const candles = Array.isArray(state.analysis?.candles) ? state.analysis.candles : [];
+  if (!candles.length) {
+    els.analysisNextCandle.textContent = "-";
+    return;
+  }
+  const lastOpen = getAnalysisDisplayDate(candles[candles.length - 1]?.time || "");
+  if (!lastOpen) {
+    els.analysisNextCandle.textContent = "-";
+    return;
+  }
+  const stepMs = timeframeToMinutes(state.analysis?.timeframe || state.analysisTimeframe || "H1") * 60000;
+  const nextOpen = new Date(lastOpen.getTime() + stepMs);
+  let diff = nextOpen.getTime() - getAnalysisClockNow().getTime();
+  while (diff < 0) diff += stepMs;
+  els.analysisNextCandle.textContent = formatCountdown(diff);
+}
+
+function formatChartCandleTime(value, timeframe = "H1") {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  const tf = String(timeframe || "H1").toUpperCase();
+  let options;
+  if (tf === "D" || tf === "W" || tf === "MN") {
+    options = { year: "numeric", month: "short", day: "2-digit", timeZone: "UTC" };
+  } else if (tf === "H4" || tf === "H1" || tf === "H2" || tf === "M30" || tf === "M15" || tf === "M5" || tf === "M3" || tf === "M2" || tf === "M1") {
+    options = { year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" };
+  } else {
+    options = { year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" };
+  }
+  return `${new Intl.DateTimeFormat(undefined, options).format(date)} UTC`;
+}
+
 function setConnectionState(connected, message) {
   if (els.connectionPill) {
     els.connectionPill.textContent = connected ? "MT5 Connected" : "MT5 Disconnected";
@@ -1933,9 +2132,35 @@ function setAllAlertTypesEnabled(enabled) {
   localStorage.setItem("trade-observer-alert-type-enabled", JSON.stringify(state.alertTypeEnabled));
 }
 
+function renderAnalysisSwingToggle() {
+  if (!els.analysisSwingToggleButton) return;
+  const enabled = state.analysisSwingStructureEnabled !== false;
+  els.analysisSwingToggleButton.textContent = enabled ? "HH/HL On" : "HH/HL Off";
+  els.analysisSwingToggleButton.classList.toggle("active", enabled);
+}
+
+function renderAnalysisLevelToggles() {
+  if (!els.analysisLevelToggles) return;
+  const defs = [
+    ["previous_day", "Previous Day"],
+    ["london", "London"],
+    ["asian", "Asian"],
+    ["weekly", "Weekly"],
+    ["monthly", "Monthly"],
+  ];
+  els.analysisLevelToggles.innerHTML = defs.map(([key, label]) => `
+    <button class="theme-button ${state.analysisLevelToggles?.[key] !== false ? "active" : ""}" type="button" data-analysis-level-toggle="${key}">
+      ${label}: ${state.analysisLevelToggles?.[key] !== false ? "On" : "Off"}
+    </button>
+  `).join("");
+}
+
 function renderAnalysis(payload) {
   state.analysis = payload;
+  state.analysisDetectedBrokerOffsetHours = detectAnalysisBrokerOffsetHours(payload);
   clampAnalysisViewportOffset();
+  renderAnalysisSwingToggle();
+  renderAnalysisLevelToggles();
   els.analysisSymbol.textContent = payload?.symbol || "XAUUSD";
   els.analysisTimeframe.textContent = payload?.timeframe || state.analysisTimeframe || "H1";
   if (els.analysisTimeframeSelect) {
@@ -1947,8 +2172,24 @@ function renderAnalysis(payload) {
   if (els.analysisSession) {
     els.analysisSession.textContent = payload?.day_state?.session_label || payload?.market_snapshot?.session_name || "-";
   }
-  els.analysisBias.textContent = payload?.bias ? payload.bias.toUpperCase() : "NEUTRAL";
-  els.analysisBias.className = payload?.bias === "bullish" ? "positive" : payload?.bias === "bearish" ? "negative" : "";
+  renderAnalysisTimingMeta();
+  const macroBias = payload?.bias_model?.macro_bias || payload?.bias || "neutral";
+  const localBias = payload?.bias_model?.local_bias || "neutral";
+  const alignment = payload?.bias_model?.alignment || "mixed";
+  els.analysisBias.textContent = String(macroBias).toUpperCase();
+  els.analysisBias.className = macroBias === "bullish" ? "positive" : macroBias === "bearish" ? "negative" : "";
+  if (els.analysisLocalBias) {
+    els.analysisLocalBias.textContent = String(localBias).toUpperCase();
+    els.analysisLocalBias.className = localBias === "bullish" ? "positive" : localBias === "bearish" ? "negative" : "";
+  }
+  if (els.analysisBiasAlignment) {
+    els.analysisBiasAlignment.textContent = alignment === "aligned" ? "Aligned" : alignment === "pullback" ? "Pullback" : "Mixed";
+    els.analysisBiasAlignment.className = alignment === "aligned"
+      ? (macroBias === "bullish" ? "positive" : macroBias === "bearish" ? "negative" : "")
+      : alignment === "pullback"
+        ? "neutral"
+        : "";
+  }
   els.analysisPrice.textContent = payload?.current_price ? fixed(payload.current_price) : "-";
   if (els.analysisPrediction) {
     const promptState = payload?.prompt_state || {};
@@ -2063,11 +2304,16 @@ function renderAnalysis(payload) {
     const biasModel = payload?.bias_model || {};
     const consolidation = payload?.consolidation_context || {};
     const consolidationRange = consolidation?.range || {};
+    const swingStructure = payload?.structure_context?.swing_structure || {};
+    const continuationLabel = biasModel?.continuation_label || "Mixed / fragile";
+    const continuationScore = Number(biasModel?.continuation_score || 0);
+    const continuationFactors = Array.isArray(biasModel?.continuation_factors) ? biasModel.continuation_factors : [];
     els.analysisBotContext.innerHTML = `
-      <article class="analysis-item ${payload?.bias === "bullish" ? "bullish" : payload?.bias === "bearish" ? "bearish" : "neutral"}">
+      <article class="analysis-item ${biasModel.macro_bias === "bullish" ? "bullish" : biasModel.macro_bias === "bearish" ? "bearish" : "neutral"}">
         <strong>Bias Model</strong>
-        <p>Price ${fixed(payload?.current_price || 0)} vs H4 EMA200 ${fixed(biasModel.h4_ema200 || 0)}.</p>
-        <p>Directional lean: ${String(payload?.bias || "neutral").toUpperCase()}.</p>
+        <p>Macro bias: ${String(biasModel.macro_bias || payload?.bias || "neutral").toUpperCase()} from price ${fixed(payload?.current_price || 0)} vs H4 EMA200 ${fixed(biasModel.h4_ema200 || 0)}.</p>
+        <p>Local bias: ${String(biasModel.local_bias || "neutral").toUpperCase()} from price vs ${payload?.timeframe || state.analysisTimeframe || "H1"} EMA34 ${fixed(biasModel.local_ema34 || 0)}.</p>
+        <p>Alignment: ${biasModel.alignment === "aligned" ? "trend and local move agree" : biasModel.alignment === "pullback" ? "local move is counter-trend / pullback" : "mixed / neutral"}.</p>
       </article>
       <article class="analysis-item neutral">
         <strong>Market Snapshot</strong>
@@ -2078,6 +2324,17 @@ function renderAnalysis(payload) {
         <p>${consolidation.message || "Consolidation analysis is unavailable right now."}</p>
         <p>Range ${fixed(consolidationRange.low || 0)} to ${fixed(consolidationRange.high || 0)} | Size ${fixed(consolidationRange.size || 0)}</p>
       </article>
+      <article class="analysis-item ${continuationScore >= 60 ? (String(biasModel?.continuation_side || "").toLowerCase() === "bullish" ? "bullish" : String(biasModel?.continuation_side || "").toLowerCase() === "bearish" ? "bearish" : "neutral") : "neutral"}">
+        <strong>Pullback vs Continuation</strong>
+        <p>${continuationLabel} (${continuationScore}/100).</p>
+        <p>${continuationFactors.slice(0, 2).join(" ") || "Continuation factors are unavailable right now."}</p>
+      </article>
+      ${state.analysisSwingStructureEnabled !== false ? `
+      <article class="analysis-item ${swingStructure.direction === "bullish" ? "bullish" : swingStructure.direction === "bearish" ? "bearish" : "neutral"}">
+        <strong>Higher High / Higher Low Read</strong>
+        <p>${swingStructure.summary || "Swing-structure read is unavailable right now."}</p>
+      </article>
+      ` : ""}
       <article class="analysis-item neutral">
         <strong>Daily State</strong>
         <p>Start ${money(dayState.day_start_balance || 0)} | Balance ${money(dayState.balance || 0)} | Equity ${money(dayState.equity || 0)}</p>
@@ -2109,10 +2366,25 @@ function renderAnalysis(payload) {
   const liquidityLevels = Array.isArray(structureContext.liquidity_levels) ? structureContext.liquidity_levels : [];
   const fvgs = Array.isArray(structureContext.fair_value_gaps) ? structureContext.fair_value_gaps : [];
   const orderBlocks = Array.isArray(structureContext.order_blocks) ? structureContext.order_blocks : [];
+  const zoneConceptCards = [
+    `
+      <article class="analysis-item pivot">
+        <strong>Intraday Pivot</strong>
+        <p>The intraday pivot is the middle of the active range. Above it, buyers usually have better control. Below it, sellers usually have better control.</p>
+      </article>
+    `,
+    `
+      <article class="analysis-item pivot">
+        <strong>Fib Pocket</strong>
+        <p>The fib pocket is the 50% to 61.8% retracement area of the recent swing. It is a common pullback zone where continuation setups often react.</p>
+      </article>
+    `,
+  ];
   if (!liquidityLevels.length && !fvgs.length && !orderBlocks.length) {
-    els.analysisZones.innerHTML = `<div class="empty-state">${payload?.connection_error || "Liquidity levels, fair value gaps, and order blocks will appear here."}</div>`;
+    els.analysisZones.innerHTML = zoneConceptCards.join("") + `<div class="empty-state">${payload?.connection_error || "Liquidity levels, fair value gaps, and order blocks will appear here."}</div>`;
   } else {
     els.analysisZones.innerHTML = [
+      ...zoneConceptCards,
       ...liquidityLevels.slice(0, 3).map((level) => `
         <article class="analysis-item ${level.kind === "high" ? "resistance" : "support"}">
           <strong>Liquidity ${level.kind === "high" ? "High" : "Low"}</strong>
@@ -2145,7 +2417,115 @@ function renderAnalysis(payload) {
     `).join("");
   }
 
+  evaluateAnalysisZoneApproach(payload);
+  evaluateAnalysisKeyLevelAlerts(payload);
   drawAnalysisChart(payload);
+}
+
+function evaluateAnalysisZoneApproach(payload) {
+  if (!state.analysisZoneAlertsEnabled) return;
+  const zones = Array.isArray(payload?.zones) ? payload.zones : [];
+  const snapshot = payload?.market_snapshot || {};
+  const symbol = payload?.symbol || (state.analysisSymbol || "xauusd").toUpperCase();
+  const timeframe = payload?.timeframe || state.analysisTimeframe || "H1";
+  const currentPrice = Number(payload?.current_price || 0);
+  const latestCandleTime = Array.isArray(payload?.candles) && payload.candles.length
+    ? String(payload.candles[payload.candles.length - 1]?.time || "")
+    : "";
+  if (!(currentPrice > 0) || !zones.length) return;
+
+  zones
+    .filter((zone) => String(zone.label || "").startsWith("Primary "))
+    .forEach((zone) => {
+      const low = Number(zone.low || 0);
+      const high = Number(zone.high || 0);
+      if (!(high > low)) return;
+      const distance = currentPrice < low ? low - currentPrice : currentPrice > high ? currentPrice - high : 0;
+      const threshold = Math.max(Number(snapshot.atr || 0) * 0.2, high - low, Number(snapshot.point || 0.01) * 80);
+      const stateKey = `${symbol}|${timeframe}|${zone.label}`;
+      const zoneState = state.analysisZoneStates[stateKey] || { alerted: false };
+      const approaching = distance <= threshold;
+      const advice = zone.kind === "support"
+        ? "Watch for a reclaim, higher low, or bullish rejection before buying."
+        : "Watch for rejection, a lower high, or bearish confirmation before selling.";
+
+      if (approaching && !zoneState.alerted) {
+        addLocalAlert(
+          {
+            ts: new Date().toISOString(),
+            event_type: "analysis_zone_approach",
+            severity: "info",
+            message: `${symbol} is approaching ${zone.label} on ${timeframe} near ${fixed(low)}-${fixed(high)}. ${advice}`,
+            ticket: null,
+            symbol,
+            payload: {
+              zone_label: zone.label,
+              zone_low: low,
+              zone_high: high,
+              timeframe,
+              candle_time: latestCandleTime,
+            },
+          },
+          `analysis-zone|${stateKey}|${latestCandleTime}|${fixed(low)}|${fixed(high)}`,
+        );
+        zoneState.alerted = true;
+      } else if (!approaching && distance > threshold * 1.5) {
+        zoneState.alerted = false;
+      }
+
+      state.analysisZoneStates[stateKey] = zoneState;
+    });
+}
+
+function evaluateAnalysisKeyLevelAlerts(payload) {
+  const levels = Array.isArray(payload?.key_levels) ? payload.key_levels : [];
+  const snapshot = payload?.market_snapshot || {};
+  const symbol = payload?.symbol || (state.analysisSymbol || "xauusd").toUpperCase();
+  const timeframe = payload?.timeframe || state.analysisTimeframe || "H1";
+  const currentPrice = Number(payload?.current_price || 0);
+  const latestCandleTime = Array.isArray(payload?.candles) && payload.candles.length
+    ? String(payload.candles[payload.candles.length - 1]?.time || "")
+    : "";
+  if (!(currentPrice > 0) || !levels.length) return;
+
+  levels.forEach((level) => {
+    const price = Number(level?.price || 0);
+    if (!(price > 0)) return;
+    const threshold = Math.max(Number(snapshot?.atr || 0) * 0.05, Number(snapshot?.point || 0.01) * 35);
+    const distance = Math.abs(currentPrice - price);
+    const stateKey = `${symbol}|${timeframe}|${level?.code || level?.label || "LEVEL"}`;
+    const levelState = state.analysisZoneStates[stateKey] || { alerted: false };
+    const touched = distance <= threshold;
+    const advice = String(level?.kind || "").toLowerCase() === "support"
+      ? "Watch for bullish rejection or a clean reclaim before buying."
+      : "Watch for bearish rejection or a failed breakout before selling.";
+
+    if (touched && !levelState.alerted) {
+      addLocalAlert(
+        {
+          ts: new Date().toISOString(),
+          event_type: "analysis_key_level_hit",
+          severity: "info",
+          message: `${symbol} hit ${level?.label || "a key level"} on ${timeframe} near ${fixed(price)}. ${advice}`,
+          ticket: null,
+          symbol,
+          payload: {
+            level_label: level?.label || "",
+            level_code: level?.code || "",
+            level_price: price,
+            timeframe,
+            candle_time: latestCandleTime,
+          },
+        },
+        `analysis-level|${stateKey}|${latestCandleTime}|${fixed(price)}`,
+      );
+      levelState.alerted = true;
+    } else if (!touched && distance > threshold * 2) {
+      levelState.alerted = false;
+    }
+
+    state.analysisZoneStates[stateKey] = levelState;
+  });
 }
 
 function setOrlMode(mode) {
@@ -2417,10 +2797,15 @@ function drawAnalysisChart(payload) {
     analysisCtx.fillStyle = getComputedStyle(document.body).getPropertyValue("--muted");
     analysisCtx.font = "18px Aptos";
     analysisCtx.fillText(payload?.connection_error || "Waiting for XAUUSD candle data...", 24, height / 2);
+    if (els.analysisChartStatus) {
+      els.analysisChartStatus.textContent = state.analysisLoading
+        ? `Loading ${payload?.symbol || (state.analysisSymbol || "xauusd").toUpperCase()} ${payload?.timeframe || state.analysisTimeframe || "H1"}...`
+        : (payload?.connection_error || "Waiting for chart data...");
+    }
     return;
   }
 
-  const visibleCount = Math.min(fullscreenActive ? 96 : 64, sourceCandles.length);
+  const visibleCount = Math.min(fullscreenActive ? 120 : 72, sourceCandles.length);
   const maxOffset = Math.max(0, sourceCandles.length - visibleCount);
   state.analysisViewportOffset = Math.max(0, Math.min(state.analysisViewportOffset || 0, maxOffset));
   const endIndex = sourceCandles.length - state.analysisViewportOffset;
@@ -2439,6 +2824,22 @@ function drawAnalysisChart(payload) {
   const step = plotWidth / candles.length;
   state.analysisInteraction.lastStep = step;
   const candleWidth = Math.max(4, step * 0.72);
+  state.analysisInteraction.geometry = {
+    width,
+    height,
+    padding,
+    plotWidth,
+    plotHeight,
+    step,
+    candleWidth,
+    maxPrice,
+    minPrice,
+    spread,
+    candles,
+  };
+  if ((state.analysisInteraction.hoverIndex ?? -1) >= candles.length) {
+    state.analysisInteraction.hoverIndex = candles.length - 1;
+  }
 
   analysisCtx.fillStyle = getComputedStyle(document.body).getPropertyValue("--panel-soft");
   analysisCtx.fillRect(0, 0, width, height);
@@ -2475,6 +2876,40 @@ function drawAnalysisChart(payload) {
     analysisCtx.fillText(zone.label, padding.left + 8, zoneY + 15);
   });
 
+  const levelColors = {
+    previous_day: "rgba(255, 214, 102, 0.95)",
+    london: "rgba(255, 107, 122, 0.95)",
+    asian: "rgba(105, 211, 255, 0.95)",
+    weekly: "rgba(193, 133, 255, 0.95)",
+    monthly: "rgba(255, 159, 67, 0.95)",
+  };
+  const visibleKeyLevels = (Array.isArray(payload?.key_levels) ? payload.key_levels : []).filter((level) => {
+    const group = String(level?.group || "");
+    return state.analysisLevelToggles?.[group] !== false;
+  });
+  visibleKeyLevels.forEach((level) => {
+    const price = Number(level?.price || 0);
+    if (!(price > 0)) return;
+    const y = padding.top + (maxPrice - price) / spread * plotHeight;
+    if (y < padding.top - 12 || y > height - padding.bottom + 12) return;
+    const color = levelColors[String(level?.group || "")] || "rgba(255,255,255,0.72)";
+    analysisCtx.strokeStyle = color;
+    analysisCtx.lineWidth = 1.2;
+    analysisCtx.setLineDash([2, 7]);
+    analysisCtx.beginPath();
+    analysisCtx.moveTo(padding.left, y);
+    analysisCtx.lineTo(width - padding.right + 8, y);
+    analysisCtx.stroke();
+    analysisCtx.setLineDash([]);
+    const labelText = `${level?.label || "Level"} ${fixed(price)}`;
+    const labelWidth = Math.max(84, labelText.length * 6.8);
+    analysisCtx.fillStyle = color;
+    analysisCtx.fillRect(padding.left + 8, y - 10, labelWidth, 18);
+    analysisCtx.fillStyle = "#04131c";
+    analysisCtx.font = "11px Aptos";
+    analysisCtx.fillText(labelText, padding.left + 14, y + 3);
+  });
+
   candles.forEach((candle, index) => {
     const centerX = padding.left + (index + 0.5) * step;
     const open = Number(candle.open);
@@ -2503,6 +2938,66 @@ function drawAnalysisChart(payload) {
     analysisCtx.fillRect(centerX - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
   });
 
+  if (state.analysisSwingStructureEnabled !== false) {
+    const allLevels = Array.isArray(payload?.structure_context?.liquidity_levels) ? payload.structure_context.liquidity_levels : [];
+    const visibleStart = String(candles[0]?.time || candles[0]?.ts || "");
+    const visibleEnd = String(candles[candles.length - 1]?.time || candles[candles.length - 1]?.ts || "");
+    const visibleLevels = allLevels
+      .filter((level) => {
+        const levelTime = String(level?.time || "");
+        return levelTime && visibleStart <= levelTime && levelTime <= visibleEnd;
+      })
+      .sort((a, b) => String(a?.time || "").localeCompare(String(b?.time || "")));
+    const highLevels = visibleLevels.filter((level) => level?.kind === "high").slice(-2);
+    const lowLevels = visibleLevels.filter((level) => level?.kind === "low").slice(-2);
+    const drawSwingMarker = (level, label, color) => {
+      if (!level) return;
+      const levelTime = String(level?.time || "");
+      const candleIndex = candles.findIndex((candle) => String(candle?.time || candle?.ts || "") === levelTime);
+      if (candleIndex < 0) return;
+      const centerX = padding.left + (candleIndex + 0.5) * step;
+      const price = Number(level?.price || 0);
+      const y = padding.top + (maxPrice - price) / spread * plotHeight;
+      const tagWidth = 46;
+      const tagHeight = 18;
+      const isLow = String(level?.kind || "").toLowerCase() === "low";
+      const tagY = isLow ? y + 10 : y - 28;
+      analysisCtx.strokeStyle = color;
+      analysisCtx.lineWidth = 1.2;
+      analysisCtx.setLineDash([3, 4]);
+      analysisCtx.beginPath();
+      analysisCtx.moveTo(centerX, y);
+      analysisCtx.lineTo(centerX, isLow ? tagY : tagY + tagHeight);
+      analysisCtx.stroke();
+      analysisCtx.setLineDash([]);
+      analysisCtx.fillStyle = color;
+      analysisCtx.fillRect(centerX - tagWidth / 2, tagY, tagWidth, tagHeight);
+      analysisCtx.fillStyle = "#04131c";
+      analysisCtx.font = "11px Aptos";
+      analysisCtx.fillText(label, centerX - tagWidth / 2 + 10, tagY + 12);
+    };
+    if (highLevels.length === 2) {
+      drawSwingMarker(highLevels[0], "PH", "rgba(255, 214, 102, 0.95)");
+      drawSwingMarker(
+        highLevels[1],
+        Number(highLevels[1]?.price || 0) > Number(highLevels[0]?.price || 0) ? "HH" : "LH",
+        Number(highLevels[1]?.price || 0) > Number(highLevels[0]?.price || 0) ? "rgba(75, 240, 179, 0.95)" : "rgba(255, 107, 122, 0.95)",
+      );
+    } else if (highLevels.length === 1) {
+      drawSwingMarker(highLevels[0], "H", "rgba(255, 214, 102, 0.95)");
+    }
+    if (lowLevels.length === 2) {
+      drawSwingMarker(lowLevels[0], "PL", "rgba(105, 211, 255, 0.95)");
+      drawSwingMarker(
+        lowLevels[1],
+        Number(lowLevels[1]?.price || 0) > Number(lowLevels[0]?.price || 0) ? "HL" : "LL",
+        Number(lowLevels[1]?.price || 0) > Number(lowLevels[0]?.price || 0) ? "rgba(75, 240, 179, 0.95)" : "rgba(255, 107, 122, 0.95)",
+      );
+    } else if (lowLevels.length === 1) {
+      drawSwingMarker(lowLevels[0], "L", "rgba(105, 211, 255, 0.95)");
+    }
+  }
+
   const drawTradeLevel = (price, color, label) => {
     if (!price || Number.isNaN(Number(price))) return;
     const y = padding.top + (maxPrice - Number(price)) / spread * plotHeight;
@@ -2521,13 +3016,6 @@ function drawAnalysisChart(payload) {
     analysisCtx.font = "12px Aptos";
     analysisCtx.fillText(label, padding.left + 14, y + 3);
   };
-
-  const executionPlan = payload?.execution_plan || {};
-  if (executionPlan.side && executionPlan.side !== "wait") {
-    drawTradeLevel(executionPlan.entry, "rgba(105, 211, 255, 0.95)", `Plan ${String(executionPlan.side).toUpperCase()} ${fixed(executionPlan.entry || 0)}`);
-    drawTradeLevel(executionPlan.stop_loss, "rgba(255, 107, 122, 0.95)", `Plan SL ${fixed(executionPlan.stop_loss || 0)}`);
-    drawTradeLevel(executionPlan.take_profit, "rgba(75, 240, 179, 0.95)", `Plan TP ${fixed(executionPlan.take_profit || 0)}`);
-  }
 
   const managementPlan = payload?.management_plan || {};
   if (managementPlan.has_open_position) {
@@ -2588,12 +3076,57 @@ function drawAnalysisChart(payload) {
     analysisCtx.font = "12px Aptos";
     analysisCtx.fillText("Drag left for newer", width - 166, 30);
   }
+  const hoverIndex = Number.isInteger(state.analysisInteraction.hoverIndex) ? state.analysisInteraction.hoverIndex : null;
+  if (hoverIndex !== null && hoverIndex >= 0 && hoverIndex < candles.length) {
+    const candle = candles[hoverIndex];
+    const centerX = padding.left + (hoverIndex + 0.5) * step;
+    const yHigh = padding.top + (maxPrice - Number(candle.high)) / spread * plotHeight;
+    const yLow = padding.top + (maxPrice - Number(candle.low)) / spread * plotHeight;
+    analysisCtx.strokeStyle = "rgba(105, 211, 255, 0.85)";
+    analysisCtx.lineWidth = 1;
+    analysisCtx.setLineDash([4, 6]);
+    analysisCtx.beginPath();
+    analysisCtx.moveTo(centerX, padding.top);
+    analysisCtx.lineTo(centerX, height - padding.bottom);
+    analysisCtx.stroke();
+    analysisCtx.beginPath();
+    analysisCtx.moveTo(padding.left, yHigh);
+    analysisCtx.lineTo(width - padding.right + 8, yHigh);
+    analysisCtx.stroke();
+    analysisCtx.beginPath();
+    analysisCtx.moveTo(padding.left, yLow);
+    analysisCtx.lineTo(width - padding.right + 8, yLow);
+    analysisCtx.stroke();
+    analysisCtx.setLineDash([]);
+
+    const hoverTime = formatAnalysisTime(candle.time || candle.ts || candle.date, payload?.timeframe || state.analysisTimeframe);
+    const bottomLabelWidth = Math.min(width - 32, Math.max(180, hoverTime.length * 7.6));
+    const bottomLabelX = Math.max(12, Math.min(centerX - bottomLabelWidth / 2, width - bottomLabelWidth - 12));
+    const bottomLabelY = height - 26;
+    analysisCtx.fillStyle = "rgba(4, 19, 28, 0.92)";
+    analysisCtx.fillRect(bottomLabelX, bottomLabelY, bottomLabelWidth, 22);
+    analysisCtx.fillStyle = "#f2f7fb";
+    analysisCtx.font = "12px Aptos";
+    analysisCtx.fillText(hoverTime, bottomLabelX + 10, bottomLabelY + 15);
+
+    const hoverInfo = `O ${fixed(candle.open)}  H ${fixed(candle.high)}  L ${fixed(candle.low)}  C ${fixed(candle.close)}`;
+    const hoverInfoWidth = Math.min(width - 32, Math.max(250, hoverInfo.length * 7.3));
+    analysisCtx.fillStyle = "rgba(4, 19, 28, 0.92)";
+    analysisCtx.fillRect(padding.left, 26, hoverInfoWidth, 24);
+    analysisCtx.fillStyle = "#f2f7fb";
+    analysisCtx.fillText(hoverInfo, padding.left + 10, 42);
   }
+  if (els.analysisChartStatus) {
+    els.analysisChartStatus.textContent = state.analysisLoading
+      ? `Loading ${payload?.symbol || (state.analysisSymbol || "xauusd").toUpperCase()} ${payload?.timeframe || state.analysisTimeframe || "H1"}...`
+      : `Viewing ${payload?.symbol || (state.analysisSymbol || "xauusd").toUpperCase()} ${payload?.timeframe || state.analysisTimeframe || "H1"} | ${getAnalysisTimezoneLabel()}`;
+  }
+}
 
 function clampAnalysisViewportOffset() {
   const candles = Array.isArray(state.analysis?.candles) ? state.analysis.candles : [];
   const fullscreenActive = Boolean(els.analysisStage && document.fullscreenElement === els.analysisStage);
-  const visibleCount = Math.min(fullscreenActive ? 96 : 64, candles.length || 0);
+  const visibleCount = Math.min(fullscreenActive ? 120 : 72, candles.length || 0);
   const maxOffset = Math.max(0, candles.length - visibleCount);
   state.analysisViewportOffset = Math.max(0, Math.min(state.analysisViewportOffset || 0, maxOffset));
 }
@@ -2634,6 +3167,33 @@ function moveAnalysisChartDrag(clientX) {
   drawAnalysisChart(state.analysis);
 }
 
+function updateAnalysisHover(clientX, clientY) {
+  if (!els.analysisCanvas || !state.analysisInteraction.geometry) return;
+  const rect = els.analysisCanvas.getBoundingClientRect();
+  const canvasX = clientX - rect.left;
+  const canvasY = clientY - rect.top;
+  const geometry = state.analysisInteraction.geometry;
+  const insideChart = (
+    canvasX >= geometry.padding.left
+    && canvasX <= geometry.padding.left + geometry.plotWidth
+    && canvasY >= geometry.padding.top
+    && canvasY <= geometry.padding.top + geometry.plotHeight
+  );
+  if (!insideChart) {
+    if (state.analysisInteraction.hoverIndex !== null) {
+      state.analysisInteraction.hoverIndex = null;
+      drawAnalysisChart(state.analysis);
+    }
+    return;
+  }
+  const rawIndex = Math.floor((canvasX - geometry.padding.left) / geometry.step);
+  const nextIndex = Math.max(0, Math.min(geometry.candles.length - 1, rawIndex));
+  if (state.analysisInteraction.hoverIndex !== nextIndex) {
+    state.analysisInteraction.hoverIndex = nextIndex;
+    drawAnalysisChart(state.analysis);
+  }
+}
+
 function endAnalysisChartDrag() {
   state.analysisInteraction.dragging = false;
   if (els.analysisCanvas) {
@@ -2641,11 +3201,20 @@ function endAnalysisChartDrag() {
   }
 }
 
-async function refreshAnalysis() {
+async function refreshAnalysis(options = {}) {
+  const background = options.background === true;
+  const showLoading = options.showLoading !== false;
+  state.analysisLoading = showLoading && !background;
+  if (state.analysis && state.analysisLoading) {
+    drawAnalysisChart(state.analysis);
+  } else if (els.analysisChartStatus && state.analysisLoading) {
+    els.analysisChartStatus.textContent = `Loading ${(state.analysisSymbol || "xauusd").toUpperCase()} ${state.analysisTimeframe || "H1"}...`;
+  }
   try {
     const symbol = (state.analysisSymbol || "xauusd").toUpperCase();
     const timeframe = state.analysisTimeframe || "H1";
     const payload = await fetchJson(`/api/analysis?symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(timeframe)}`);
+    state.analysisLastRefreshAt = Date.now();
     renderAnalysis(payload);
   } catch (error) {
     renderAnalysis({
@@ -2658,6 +3227,10 @@ async function refreshAnalysis() {
       current_price: 0,
       connection_error: "Could not load analysis data from the local server.",
     });
+  } finally {
+    state.analysisLoading = false;
+    renderAnalysisTimingMeta();
+    if (state.analysis) drawAnalysisChart(state.analysis);
   }
 }
 
@@ -3623,6 +4196,8 @@ function alarmTitleFor(eventType) {
     close: "Trade Closed",
     analysis_buy_confirmed: "Analysis Buy Now",
     analysis_break_even_prompt: "Analysis Break-Even Prompt",
+    analysis_zone_approach: "Primary Zone Approach",
+    analysis_key_level_hit: "Key Level Hit",
     liquidity_sweep_detected: "Liquidity Sweep Detected",
     account_switched: "Trading Account Switched",
     m5_direction_shift: "M5 Direction Shift",
@@ -3660,6 +4235,8 @@ function buildTestAlert(eventType) {
     close: "Test only: this simulates a trade close alarm. 3 trades closed in this batch.",
     analysis_buy_confirmed: "Test only: this simulates a confirmed analysis buy-now alert.",
     analysis_break_even_prompt: "Test only: this simulates a break-even management prompt.",
+    analysis_zone_approach: "Test only: this simulates a one-time alert as price approaches a primary support or resistance zone.",
+    analysis_key_level_hit: "Test only: this simulates a one-time alert as price touches a tracked level like PDH or London high.",
     liquidity_sweep_detected: "Test only: this simulates a live engineered liquidity sweep alert.",
     account_switched: "Test only: this simulates a trading account switch alarm.",
     m5_direction_shift: "Test only: this simulates an M5 bullish direction shift alert.",
@@ -4171,6 +4748,8 @@ function playBrowserAlert(eventType) {
     close: [700, 900, 1200],
     analysis_buy_confirmed: [988, 1244, 1568],
     analysis_break_even_prompt: [820, 1020, 1180],
+    analysis_zone_approach: [700, 880, 1040],
+    analysis_key_level_hit: [960, 1200, 1440],
     liquidity_sweep_detected: [660, 990, 770],
     account_switched: [780, 980, 1180],
     m5_direction_shift: [780, 980, 1240, 1480],
@@ -4225,7 +4804,7 @@ function speakAnalysisDecision(alertOrEvent) {
 }
 
 function shouldLoopAlert(eventType) {
-  return !["analysis_buy_confirmed", "analysis_break_even_prompt"].includes(String(eventType || ""));
+  return !["analysis_buy_confirmed", "analysis_break_even_prompt", "analysis_zone_approach", "analysis_key_level_hit"].includes(String(eventType || ""));
 }
 
 function stopAlarmLoop() {
@@ -5113,6 +5692,9 @@ async function refreshState() {
     const combinedAlerts = mergeAlerts(data.recent_alerts);
     renderAlerts(combinedAlerts);
     maybePlayLatestAlert(combinedAlerts);
+    if (Date.now() - Number(state.analysisLastRefreshAt || 0) >= 15000) {
+      refreshAnalysis({ background: true, showLoading: false }).catch(() => {});
+    }
     } catch (error) {
       state.connected = false;
       setConnectionState(false, "Local dashboard server is offline");
@@ -5291,6 +5873,40 @@ function bindEvents() {
     refreshAnalysis().catch(() => {});
   });
 
+  els.analysisTimeDisplayModeSelect?.addEventListener("change", () => {
+    state.analysisTimeDisplayMode = els.analysisTimeDisplayModeSelect.value || "local";
+    localStorage.setItem("trade-observer-analysis-time-display-mode", state.analysisTimeDisplayMode);
+    renderAnalysisTimingMeta();
+    if (state.analysis) drawAnalysisChart(state.analysis);
+  });
+
+  els.analysisZoneAlertToggleButton?.addEventListener("click", () => {
+    state.analysisZoneAlertsEnabled = !state.analysisZoneAlertsEnabled;
+    localStorage.setItem("trade-observer-analysis-zone-alerts", state.analysisZoneAlertsEnabled ? "on" : "off");
+    renderAnalysisTimingMeta();
+  });
+
+  els.analysisLevelToggles?.addEventListener("click", (event) => {
+    const button = event.target instanceof Element ? event.target.closest("[data-analysis-level-toggle]") : null;
+    if (!button) return;
+    const key = String(button.getAttribute("data-analysis-level-toggle") || "");
+    if (!key) return;
+    state.analysisLevelToggles[key] = !(state.analysisLevelToggles?.[key] !== false);
+    localStorage.setItem("trade-observer-analysis-level-toggles", JSON.stringify(state.analysisLevelToggles));
+    renderAnalysisLevelToggles();
+    if (state.analysis) drawAnalysisChart(state.analysis);
+  });
+
+  els.analysisSwingToggleButton?.addEventListener("click", () => {
+    state.analysisSwingStructureEnabled = !state.analysisSwingStructureEnabled;
+    localStorage.setItem("trade-observer-analysis-swing-structure", state.analysisSwingStructureEnabled ? "on" : "off");
+    renderAnalysisSwingToggle();
+    if (state.analysis) {
+      renderAnalysis(state.analysis);
+      drawAnalysisChart(state.analysis);
+    }
+  });
+
   els.analysisCanvas?.addEventListener("pointerdown", (event) => {
     if (!state.analysis?.candles?.length) return;
     beginAnalysisChartDrag(event.clientX);
@@ -5301,6 +5917,7 @@ function bindEvents() {
   els.analysisCanvas?.addEventListener("pointermove", (event) => {
     if (!state.analysisInteraction.dragging) {
       els.analysisCanvas.style.cursor = state.analysis?.candles?.length ? "grab" : "default";
+      updateAnalysisHover(event.clientX, event.clientY);
       return;
     }
     moveAnalysisChartDrag(event.clientX);
@@ -5314,6 +5931,11 @@ function bindEvents() {
 
   els.analysisCanvas?.addEventListener("pointercancel", () => {
     endAnalysisChartDrag();
+  });
+
+  els.analysisCanvas?.addEventListener("pointerleave", () => {
+    state.analysisInteraction.hoverIndex = null;
+    if (state.analysis) drawAnalysisChart(state.analysis);
   });
 
   els.analysisFullscreenButton?.addEventListener("click", () => {
@@ -6019,6 +6641,8 @@ async function boot() {
   renderTradeLockToggle();
   renderNotificationsToggle();
   renderAlertSettings();
+  renderAnalysisSwingToggle();
+  renderAnalysisLevelToggles();
   setupLaunchBanner();
   bindEvents();
 
@@ -6075,6 +6699,7 @@ async function boot() {
   if (els.calcXauPipModeSelect) {
     els.calcXauPipModeSelect.value = state.calculatorXauPipMode || "0.10";
   }
+  renderAnalysisTimingMeta();
   runCalculator();
   renderRiskGuide();
   runRiskPlanner();
@@ -6085,6 +6710,9 @@ async function boot() {
   await refreshActivePageData();
   setInterval(() => {
     refreshState().catch(() => {});
+  }, 1000);
+  setInterval(() => {
+    renderAnalysisTimingMeta();
   }, 1000);
   startActivePageIntervals();
 }

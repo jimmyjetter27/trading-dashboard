@@ -276,9 +276,13 @@
       <div class="analysis-topline">
         <div><span>Symbol</span><strong id="analysisSymbol">XAUUSD</strong></div>
         <div><span>Timeframe</span><strong id="analysisTimeframe">H1</strong></div>
-        <div><span>Bias</span><strong id="analysisBias">Neutral</strong></div>
+        <div><span>Macro Bias</span><strong id="analysisBias">Neutral</strong></div>
+        <div><span>Local Bias</span><strong id="analysisLocalBias">Neutral</strong></div>
+        <div><span>Alignment</span><strong id="analysisBiasAlignment">-</strong></div>
         <div><span>Current Price</span><strong id="analysisPrice">-</strong></div>
         <div><span>Session</span><strong id="analysisSession">-</strong></div>
+        <div><span>Next Candle</span><strong id="analysisNextCandle">-</strong></div>
+        <div><span>Clock Mode</span><strong id="analysisClockMode">My Time</strong></div>
         <label class="analysis-control">
           <span>Market</span>
           <select id="analysisSymbolSelect">
@@ -299,6 +303,10 @@
             <option value="D1">D1</option>
           </select>
         </label>
+        <div class="analysis-control">
+          <span>Structure Overlay</span>
+          <button class="theme-button active" id="analysisSwingToggleButton" type="button">HH/HL On</button>
+        </div>
       </div>
       <div class="analysis-banner neutral" id="analysisPrediction">Execution guidance will appear after MT5 candle data loads.</div>
       <div class="analysis-grid analysis-grid-3">
@@ -341,7 +349,9 @@
           <span>Open Markets</span>
           <strong id="analysisOpenMarkets">No major market is currently open</strong>
         </div>
+        <div class="analysis-level-toggle-row" id="analysisLevelToggles"></div>
         <div class="analysis-chart-wrap">
+          <div class="analysis-chart-status" id="analysisChartStatus">Waiting for chart data...</div>
           <canvas id="analysisCanvas" width="1280" height="560"></canvas>
         </div>
       </div>

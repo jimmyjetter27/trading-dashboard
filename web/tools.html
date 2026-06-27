@@ -124,6 +124,42 @@
     <section class="panel page-section" data-page-panel="tools">
       <div class="panel-head">
         <div>
+          <p class="panel-kicker">Analysis Settings</p>
+          <h2>Time Display & Background Alerts</h2>
+        </div>
+      </div>
+      <div class="calculator-form-grid risk-form-grid">
+        <label>
+          <span>Analysis Time Display</span>
+          <select id="analysisTimeDisplayModeSelect">
+            <option value="local" selected>My Timezone</option>
+            <option value="broker">Broker Time</option>
+          </select>
+        </label>
+        <label>
+          <span>Detected Broker Offset</span>
+          <input id="analysisBrokerOffsetDisplay" type="text" value="Auto detect from candles" readonly>
+        </label>
+        <label class="toggle-filter">
+          <span>Primary Zone Alerts</span>
+          <button class="theme-button" id="analysisZoneAlertToggleButton" type="button">Alerts On</button>
+        </label>
+      </div>
+      <div class="analysis-list">
+        <article class="analysis-item neutral">
+          <strong>Clock Behavior</strong>
+          <p>My Timezone adjusts chart times toward your local clock. Broker Time keeps the raw MT5 candle clock so it lines up with your terminal session.</p>
+        </article>
+        <article class="analysis-item neutral">
+          <strong>Background Zone Monitor</strong>
+          <p>When enabled, the dashboard keeps checking the selected Analysis symbol and timeframe in the background and alerts once when price approaches the primary support or resistance zone.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel page-section" data-page-panel="tools">
+      <div class="panel-head">
+        <div>
           <p class="panel-kicker">Alert Settings</p>
           <h2>Choose Which Alerts Can Interrupt You</h2>
         </div>
